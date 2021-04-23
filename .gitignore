@@ -5,6 +5,8 @@ archives/
 data/*
 !data/*.lineage
 
+Pipfile
+*.lock
 *.zip
 *.pkl
 *.tar.gz

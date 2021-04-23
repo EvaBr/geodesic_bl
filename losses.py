@@ -138,7 +138,7 @@ class WeightedSurfaceLoss():
 
         n_classes = kwargs["n_classes"] if "n_classes" in kwargs else 7 #assume mostly use for POEM data
         device = kwargs["device"]
-        self.weights = torch.tensor([i for i in idc if i>0]).float().view(1, len(self.idc)).to(device)
+        self.weights = torch.tensor([i for i in idc if i>0]).float().to(device)
         print(f"Initialized {self.__class__.__name__} with {kwargs}")
 
     def __call__(self, probs: Tensor, dist_maps: Tensor) -> Tensor:
@@ -151,12 +151,12 @@ class WeightedSurfaceLoss():
         multipled = einsum("bkwh,bkwh->bkwh", pc, dc)
 
         #OPTION 1: do a soooort-of weighted mean by hand?
-        weightedall = torch.dot(einsum("bkwh->k", pc), self.weights)
-        weighted = torch.dot(einsum("bkwh->k", multipled), self.weights)
-        loss = weighted / (weightedall + 1e-10) #kind of weighted mean? 
+    #    weightedall = torch.dot(einsum("bkwh->k", pc), self.weights)
+    #    weighted = torch.dot(einsum("bkwh->k", multipled), self.weights)
+    #    loss = weighted / (weightedall + 1e-10) #kind of weighted mean? 
 
         #OPTION 2: Simulate  the computation that happens if you put in multiple/per-class BLs in args
-    #    loss = torch.dot(multipled.mean(dim=(0,2,3)), self.weights) 
+        loss = torch.dot(multipled.mean(dim=(0,2,3)), self.weights) 
         
         return loss
 
