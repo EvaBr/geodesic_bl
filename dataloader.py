@@ -9,7 +9,7 @@ from itertools import repeat
 from operator import itemgetter, mul
 from functools import partial, reduce
 from multiprocessing import cpu_count
-from typing import Callable, BinaryIO, Match, Pattern, Tuple, Union, Optional
+from typing import Callable, BinaryIO, Match, Pattern, Tuple, Union, Optional, List, Dict
 
 import torch
 import numpy as np
@@ -138,7 +138,7 @@ def get_loaders(args, data_folder: str,
                 batch_size: int, n_class: int,
                 debug: bool, in_memory: bool,
                 dimensions: int,
-                use_spacing: bool = False) -> Tuple[list[DataLoader], list[DataLoader]]:
+                use_spacing: bool = False) -> Tuple[List[DataLoader], List[DataLoader]]:
         losses_list = eval(args.losses)
         if depth(losses_list) == 1:
                 losses_list = [losses_list]
@@ -173,11 +173,11 @@ def get_loaders(args, data_folder: str,
                                       pin_memory=True,
                                       collate_fn=custom_collate)
 
-                train_folders: list[Path] = [Path(data_folder, train_topfolder, f) for f in folders]
+                train_folders: List[Path] = [Path(data_folder, train_topfolder, f) for f in folders]
                 # I assume all files have the same name inside their folder: makes things much easier
-                train_names: list[str] = map_(lambda p: str(p.name), train_folders[0].glob("*"))
+                train_names: List[str] = map_(lambda p: str(p.name), train_folders[0].glob("*"))
                 t_spacing_p: Path = Path(data_folder, train_topfolder, "spacing.pkl")
-                train_spacing_dict: dict[str, Tuple[float, ...]] = pickle.load(open(t_spacing_p, 'rb')) if use_spacing else None
+                train_spacing_dict: Dict[str, Tuple[float, ...]] = pickle.load(open(t_spacing_p, 'rb')) if use_spacing else None
                 train_set = gen_dataset(train_names,
                                         train_folders,
                                         spacing_dict=train_spacing_dict)
@@ -195,11 +195,11 @@ def get_loaders(args, data_folder: str,
 
                 if i == args.val_loader_id or (args.val_loader_id == -1 and (i + 1) == len(args.training_folders)):
                         print(f">> Validation dataloader (id {args.val_loader_id}), {train_topfolder} {folders}")
-                        val_folders: list[Path] = [Path(data_folder, args.validation_folder, f) for f in folders]
-                        val_names: list[str] = map_(lambda p: str(p.name), val_folders[0].glob("*"))
+                        val_folders: List[Path] = [Path(data_folder, args.validation_folder, f) for f in folders]
+                        val_names: List[str] = map_(lambda p: str(p.name), val_folders[0].glob("*"))
                         v_spacing_p: Path = Path(data_folder, args.validation_folder, "spacing.pkl")
 
-                        val_spacing_dict: dict[str, Tuple[float, ...]] 
+                        val_spacing_dict: Dict[str, Tuple[float, ...]] 
                         val_spacing_dict = pickle.load(open(v_spacing_p, 'rb')) if use_spacing else None
 
                         val_set = gen_dataset(val_names,
@@ -215,22 +215,22 @@ def get_loaders(args, data_folder: str,
 
 
 class SliceDataset(Dataset):
-        def __init__(self, filenames: list[str], folders: list[Path], are_hots: list[bool],
-                     transforms: list[Callable], debug=False, quiet=False,
-                     K=4, in_memory: bool = False, spacing_dict: dict[str, Tuple[float, ...]] = None,
+        def __init__(self, filenames: List[str], folders: List[Path], are_hots: List[bool],
+                     transforms: List[Callable], debug=False, quiet=False,
+                     K=4, in_memory: bool = False, spacing_dict: Dict[str, Tuple[float, ...]] = None,
                      augment: Optional[Callable] = None, ignore_norm: bool = False,
                      dimensions: int = 2, debug_size: int = 10, no_assert: bool = False) -> None:
-                self.folders: list[Path] = folders
-                self.transforms: list[Callable[[Tuple, int], Callable[[D], Tensor]]] = transforms
+                self.folders: List[Path] = folders
+                self.transforms: List[Callable[[Tuple, int], Callable[[D], Tensor]]] = transforms
                 assert len(self.transforms) == len(self.folders)
 
-                self.are_hots: list[bool] = are_hots
-                self.filenames: list[str] = filenames
+                self.are_hots: List[bool] = are_hots
+                self.filenames: List[str] = filenames
                 self.debug = debug
                 self.K: int = K  # Number of classes
                 self.in_memory: bool = in_memory
                 self.quiet: bool = quiet
-                self.spacing_dict: Optional[dict[str, Tuple[float, ...]]] = spacing_dict
+                self.spacing_dict: Optional[Dict[str, Tuple[float, ...]]] = spacing_dict
                 if self.spacing_dict:
                         assert len(self.spacing_dict) == len(self.filenames)
                         print("> Spacing dictionnary loaded correctly")
@@ -248,12 +248,12 @@ class SliceDataset(Dataset):
 
                 if not self.quiet:
                         print(f">> Initializing {self.__class__.__name__} with {len(self.filenames)} images")
-                        print(f"> {self.dimensions=}")
+                        print(f"> {self.dimensions}")
                         if self.augment:
                                 print("> Will augment data online")
 
                 # Load things in memory if needed
-                self.files: list[list[F]] = SliceDataset.load_images(self.folders, self.filenames, self.in_memory)
+                self.files: List[List[F]] = SliceDataset.load_images(self.folders, self.filenames, self.in_memory)
                 assert len(self.files) == len(self.folders)
                 for files in self.files:
                         assert len(files) == len(self.filenames)
@@ -270,7 +270,7 @@ class SliceDataset(Dataset):
                 return True
 
         @staticmethod
-        def load_images(folders: list[Path], filenames: list[str], in_memory: bool, quiet=False) -> list[list[F]]:
+        def load_images(folders: List[Path], filenames: List[str], in_memory: bool, quiet=False) -> List[List[F]]:
                 def load(folder: Path, filename: str) -> F:
                         p: Path = Path(folder, filename)
                         if in_memory:
@@ -281,22 +281,22 @@ class SliceDataset(Dataset):
                 if in_memory and not quiet:
                         print("> Loading the data in memory...")
 
-                files: list[list[F]] = [[load(f, im) for im in filenames] for f in folders]
+                files: List[List[F]] = [[load(f, im) for im in filenames] for f in folders]
 
                 return files
 
         def __len__(self):
                 return len(self.filenames)
 
-        def __getitem__(self, index: int) -> dict[str, Union[str,
+        def __getitem__(self, index: int) -> Dict[str, Union[str,
                                                              int,
                                                              Tensor,
-                                                             list[Tensor],
-                                                             list[Tuple[slice, ...]],
-                                                             list[Tuple[Tensor, Tensor]]]]:
+                                                             List[Tensor],
+                                                             List[Tuple[slice, ...]],
+                                                             List[Tuple[Tensor, Tensor]]]]:
                 filename: str = self.filenames[index]
                 path_name: Path = Path(filename)
-                images: list[D]
+                images: List[D]
 
                 if path_name.suffix == ".png":
                         images = [Image.open(files[index]) for files in self.files]
@@ -313,10 +313,10 @@ class SliceDataset(Dataset):
 
                 # Final transforms and assertions
                 assert len(images) == len(self.folders) == len(self.transforms)
-                t_tensors: list[Tensor] = [tr(resolution, self.K)(e) for (tr, e) in zip(self.transforms, images)]
+                t_tensors: List[Tensor] = [tr(resolution, self.K)(e) for (tr, e) in zip(self.transforms, images)]
                 _, *img_shape = t_tensors[0].shape
 
-                final_tensors: list[Tensor]
+                final_tensors: List[Tensor]
                 if self.augment:
                         final_tensors = self.augment(*t_tensors)
                 else:
@@ -387,7 +387,7 @@ def custom_collate(batch):
 
 class PatientSampler(Sampler):
         def __init__(self, dataset: SliceDataset, grp_regex, shuffle=False, quiet=False) -> None:
-                filenames: list[str] = dataset.filenames
+                filenames: List[str] = dataset.filenames
                 # Might be needed in case of escape sequence fuckups
                 # self.grp_regex = bytes(grp_regex, "utf-8").decode('unicode_escape')
                 assert grp_regex is not None
@@ -402,16 +402,16 @@ class PatientSampler(Sampler):
                 # grouping_regex: Pattern = re.compile("grp_regex")
                 grouping_regex: Pattern = re.compile(self.grp_regex)
 
-                stems: list[str] = [Path(filename).stem for filename in filenames]  # avoid matching the extension
-                matches: list[Match] = map_(grouping_regex.match, stems)
-                patients: list[str] = [match.group(1) for match in matches]
+                stems: List[str] = [Path(filename).stem for filename in filenames]  # avoid matching the extension
+                matches: List[Match] = map_(grouping_regex.match, stems)
+                patients: List[str] = [match.group(1) for match in matches]
 
-                unique_patients: list[str] = list(set(patients))
+                unique_patients: List[str] = list(set(patients))
                 assert len(unique_patients) < len(filenames)
                 if not quiet:
                         print(f"Found {len(unique_patients)} unique patients out of {len(filenames)} images ; regex: {self.grp_regex}")
 
-                self.idx_map: dict[str, list[int]] = dict(zip(unique_patients, repeat(None)))
+                self.idx_map: Dict[str, List[int]] = dict(zip(unique_patients, repeat(None)))
                 for i, patient in enumerate(patients):
                         if not self.idx_map[patient]:
                                 self.idx_map[patient] = []

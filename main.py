@@ -6,7 +6,7 @@ from pathlib import Path
 from functools import reduce
 from operator import add, itemgetter
 from shutil import copytree, rmtree
-from typing import Any, Callable, Optional, Tuple, cast
+from typing import Any, Callable, Optional, Tuple, cast, List, Dict
 
 import torch
 import numpy as np
@@ -22,7 +22,7 @@ from utils import probs2one_hot, probs2class
 from utils import dice_coef, save_images, tqdm_, dice_batch
 
 
-def setup(args, n_class: int) -> Tuple[Any, Any, Any, list[list[Callable]], list[list[float]], Callable]:
+def setup(args, n_class: int) -> Tuple[Any, Any, Any, List[List[Callable]], List[List[float]], Callable]:
         print("\n>>> Setting up")
         cpu: bool = args.cpu or not torch.cuda.is_available()
         device = torch.device("cpu") if cpu else torch.device("cuda")
@@ -50,26 +50,27 @@ def setup(args, n_class: int) -> Tuple[Any, Any, Any, list[list[Callable]], list
         if depth(list_losses) == 1:  # For compatibility reasons, avoid changing all the previous configuration files
                 list_losses = [list_losses]
 
-        loss_fns: list[list[Callable]] = []
+        loss_fns: List[List[Callable]] = []
         for i, losses in enumerate(list_losses):
                 print(f">> {i}th list of losses: {losses}")
-                tmp: list[Callable] = []
+                tmp: List[Callable] = []
                 for loss_name, loss_params, _ in losses:
                         loss_class = getattr(__import__('losses'), loss_name)
+                        loss_params |= {'device': device} #, 'n_classes': args.n_class}
                         tmp.append(loss_class(**loss_params))
                 loss_fns.append(tmp)
 
-        loss_weights: list[list[float]] = [map_(itemgetter(2), losses) for losses in list_losses]
+        loss_weights: List[List[float]] = [map_(itemgetter(2), losses) for losses in list_losses]
 
         scheduler = getattr(__import__('scheduler'), args.scheduler)(**eval(args.scheduler_params))
 
         return net, optimizer, device, loss_fns, loss_weights, scheduler
 
 
-def do_epoch(mode: str, net: Any, device: Any, loaders: list[DataLoader], epc: int,
-             list_loss_fns: list[list[Callable]], list_loss_weights: list[list[float]], K: int,
+def do_epoch(mode: str, net: Any, device: Any, loaders: List[DataLoader], epc: int,
+             list_loss_fns: List[List[Callable]], list_loss_weights: List[List[float]], K: int,
              savedir: str = "", optimizer: Any = None,
-             metric_axis: list[int] = [1],
+             metric_axis: List[int] = [1],
              compute_3d_dice: bool = False,
              temperature: float = 1) -> Tuple[Tensor,
                                               Tensor,
@@ -104,9 +105,9 @@ def do_epoch(mode: str, net: Any, device: Any, loaders: list[DataLoader], epc: i
                         # t0 = time()
                         image: Tensor = data["images"].to(device)
                         target: Tensor = data["gt"].to(device)
-                        filenames: list[str] = data["filenames"]
+                        filenames: List[str] = data["filenames"]
                         assert not target.requires_grad
-                        labels: list[Tensor] = [e.to(device) for e in data["labels"]]
+                        labels: List[Tensor] = [e.to(device) for e in data["labels"]]
                         B, C, *_ = image.shape
 
                         # Reset gradients
@@ -179,18 +180,18 @@ def do_epoch(mode: str, net: Any, device: Any, loaders: list[DataLoader], epc: i
                 three_d_dices.detach().cpu() if three_d_dices is not None else None)
 
 
-def run(args: argparse.Namespace) -> dict[str, Tensor]:
+def run(args: argparse.Namespace) -> Dict[str, Tensor]:
         n_class: int = args.n_class
         lr: float = args.l_rate
         savedir: str = args.workdir
         n_epoch: int = args.n_epoch
         val_f: int = args.val_loader_id
 
-        loss_fns: list[list[Callable]]
-        loss_weights: list[list[float]]
+        loss_fns: List[List[Callable]]
+        loss_weights: List[List[float]]
         net, optimizer, device, loss_fns, loss_weights, scheduler = setup(args, n_class)
-        train_loaders: list[DataLoader]
-        val_loaders: list[DataLoader]
+        train_loaders: List[DataLoader]
+        val_loaders: List[DataLoader]
         train_loaders, val_loaders = get_loaders(args, args.dataset,
                                                  args.batch_size, n_class,
                                                  args.debug, args.in_memory, args.dimensions, args.use_spacing)
@@ -200,11 +201,12 @@ def run(args: argparse.Namespace) -> dict[str, Tensor]:
         n_val: int = sum(len(vl_lo.dataset) for vl_lo in val_loaders)
         l_val: int = sum(len(vl_lo) for vl_lo in val_loaders)
         n_loss: int = max(map(len, loss_fns))
+        n_val_loss: int = len(loss_fns[val_f])
 
         best_dice: Tensor = cast(Tensor, torch.zeros(1).type(torch.float32))
         best_epoch: int = 0
-        metrics: dict[str, Tensor] = {"val_dice": torch.zeros((n_epoch, n_val, n_class)).type(torch.float32),
-                                      "val_loss": torch.zeros((n_epoch, l_val, len(loss_fns[val_f]))).type(torch.float32),
+        metrics: Dict[str, Tensor] = {"val_dice": torch.zeros((n_epoch, n_val, n_class)).type(torch.float32),
+                                      "val_loss": torch.zeros((n_epoch, l_val, n_val_loss)).type(torch.float32),
                                       "tra_dice": torch.zeros((n_epoch, n_tra, n_class)).type(torch.float32),
                                       "tra_loss": torch.zeros((n_epoch, l_tra, n_loss)).type(torch.float32)}
         if args.compute_3d_dice:
@@ -238,12 +240,18 @@ def run(args: argparse.Namespace) -> dict[str, Tensor]:
                 for k, e in metrics.items():
                         np.save(Path(savedir, f"{k}.npy"), e.cpu().numpy())
 
-                df = pd.DataFrame({"tra_loss": metrics["tra_loss"].mean(dim=(1, 2)).numpy(),
-                                   "val_loss": metrics["val_loss"].mean(dim=(1, 2)).numpy(),
-                                   "tra_dice": metrics["tra_dice"][:, :, -1].mean(dim=1).numpy(),
-                                   "val_dice": metrics["val_dice"][:, :, -1].mean(dim=1).numpy()})
+                #df = pd.DataFrame({"tra_loss": metrics["tra_loss"].mean(dim=(1, 2)).numpy(),
+                #                   "val_loss": metrics["val_loss"].mean(dim=(1, 2)).numpy(),
+                #                   "tra_dice": metrics["tra_dice"][:, :, -1].mean(dim=1).numpy(),
+                #                   "val_dice": metrics["val_dice"][:, :, -1].mean(dim=1).numpy()}) #only last class. not ok for multiclass. ?
+                cols = {"tra_loss": [f"Loss{m}" for m in range(n_loss)], "val_loss": [f"Loss{m}" for m in range(n_val_loss)], 
+                        "tra_dice": [f"Dice{m}" for m in range(n_class)], "val_dice": [f"Dice{m}" for m in range(n_class)], 
+                        "val_3d_dsc": [f"Dice{m}" for m in range(n_class)]}
+                df = pd.concat([pd.DataFrame(v.mean(dim=1).numpy().tolist(), columns=cols[k]) for k,v in metrics.items()], axis=1)
+
                 df.to_csv(Path(savedir, args.csv), float_format="%.4f", index_label="epoch")
 
+                
                 # Save model if better
                 current_dice: Tensor = val_dice[:, args.metric_axis].mean()
                 if current_dice > best_dice:

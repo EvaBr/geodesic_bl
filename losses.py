@@ -51,6 +51,42 @@ class GeneralizedDice():
         return loss
 
 
+class WeightedGeneralizedDice():
+    def __init__(self, **kwargs):
+        # Self.idc is used to filter out some classes of the target mask. Use fancy indexing
+        idc = kwargs["idc"] #now these are weights that we apply. 
+        self.idc: List[int] = [i for i,v in enumerate(idc) if v>0]
+        #If a class should be ignored, simply set weight=0 for that class.
+        device = kwargs["device"]
+        self.weights = torch.tensor([i for i in idc if i>0]).float().view(1, len(self.idc)).to(device)
+
+        print(f"Initialized {self.__class__.__name__} with {kwargs}")
+
+    def __call__(self, probs: Tensor, target: Tensor) -> Tensor:
+        assert simplex(probs) and simplex(target)
+
+        pc = probs[:, self.idc, ...].type(torch.float32)
+        tc = target[:, self.idc, ...].type(torch.float32)
+
+        #OPTION 1: instead of dynamically changing weights batch-based, keep them static based on input weights
+        w: Tensor = 1 / ((self.weights+1e-10)**2)
+        intersection: Tensor = w * einsum("bkwh,bkwh->bk", pc, tc)
+        union: Tensor = w * (einsum("bkwh->bk", pc) + einsum("bkwh->bk", tc))
+
+        divided: Tensor = 1 - 2 * (einsum("bk->b", intersection) + 1e-10) / (einsum("bk->b", union) + 1e-10)
+
+        #OPTION 2: imitate the computation that happens if you put in multiple/per-class GDL losses as args 
+    #    w: Tensor = 1 / ((einsum("bkwh->bk", tc).type(torch.float32) + 1e-10) ** 2)
+    #    intersection: Tensor = w * einsum("bkwh,bkwh->bk", pc, tc)
+    #    union: Tensor = w * (einsum("bkwh->bk", pc) + einsum("bkwh->bk", tc))
+
+    #    divided: Tensor = self.weights.sum() - 2 * einsum("bk->b", (intersection + 1e-10) / (union + 1e-10) * self.weights)
+
+        loss = divided.mean()
+
+        return loss
+
+
 class DiceLoss():
     def __init__(self, **kwargs):
         # Self.idc is used to filter out some classes of the target mask. Use fancy indexing
@@ -93,8 +129,40 @@ class SurfaceLoss():
         return loss
 
 
-BoundaryLoss = SurfaceLoss
+class WeightedSurfaceLoss():
+    def __init__(self, **kwargs):
+        # Self.idc is used to filter out some classes of the target mask. Use fancy indexing
+        idc = kwargs["idc"] #now these are weights that we apply. 
+        #If a class should be ignored, simply set weight=0 for that class.
+        self.idc: List[int] = [i for i,v in enumerate(idc) if v>0]
 
+        n_classes = kwargs["n_classes"] if "n_classes" in kwargs else 7 #assume mostly use for POEM data
+        device = kwargs["device"]
+        self.weights = torch.tensor([i for i in idc if i>0]).float().view(1, len(self.idc)).to(device)
+        print(f"Initialized {self.__class__.__name__} with {kwargs}")
+
+    def __call__(self, probs: Tensor, dist_maps: Tensor) -> Tensor:
+        assert simplex(probs)
+        assert not one_hot(dist_maps)
+
+        pc = probs[:, self.idc, ...].type(torch.float32)
+        dc = dist_maps[:, self.idc, ...].type(torch.float32)
+        
+        multipled = einsum("bkwh,bkwh->bkwh", pc, dc)
+
+        #OPTION 1: do a soooort-of weighted mean by hand?
+        weightedall = torch.dot(einsum("bkwh->k", pc), self.weights)
+        weighted = torch.dot(einsum("bkwh->k", multipled), self.weights)
+        loss = weighted / (weightedall + 1e-10) #kind of weighted mean? 
+
+        #OPTION 2: Simulate  the computation that happens if you put in multiple/per-class BLs in args
+    #    loss = torch.dot(multipled.mean(dim=(0,2,3)), self.weights) 
+        
+        return loss
+
+
+BoundaryLoss = SurfaceLoss
+WeightedBoundaryLoss = WeightedSurfaceLoss
 
 class HausdorffLoss():
     """
