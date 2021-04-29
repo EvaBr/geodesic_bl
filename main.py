@@ -244,9 +244,9 @@ def run(args: argparse.Namespace) -> Dict[str, Tensor]:
                 #                   "val_loss": metrics["val_loss"].mean(dim=(1, 2)).numpy(),
                 #                   "tra_dice": metrics["tra_dice"][:, :, -1].mean(dim=1).numpy(),
                 #                   "val_dice": metrics["val_dice"][:, :, -1].mean(dim=1).numpy()}) #only last class. not ok for multiclass. ?
-                cols = {"tra_loss": [f"Loss{m}" for m in range(n_loss)], "val_loss": [f"Loss{m}" for m in range(n_val_loss)], 
-                        "tra_dice": [f"Dice{m}" for m in range(n_class)], "val_dice": [f"Dice{m}" for m in range(n_class)], 
-                        "val_3d_dsc": [f"Dice{m}" for m in range(n_class)]}
+                cols = {"tra_loss": [f"tra_Loss{m}" for m in range(n_loss)], "val_loss": [f"val_Loss{m}" for m in range(n_val_loss)], 
+                        "tra_dice": [f"tra_Dice{m}" for m in range(n_class)], "val_dice": [f"val_Dice{m}" for m in range(n_class)], 
+                        "val_3d_dsc": [f"val_3d_Dice{m}" for m in range(n_class)]}
                 df = pd.concat([pd.DataFrame(v.mean(dim=1).numpy().tolist(), columns=cols[k]) for k,v in metrics.items()], axis=1)
 
                 df.to_csv(Path(savedir, args.csv), float_format="%.4f", index_label="epoch")

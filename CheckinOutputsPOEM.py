@@ -53,15 +53,16 @@ def compareOuts(results_folder, out_folder, epoch=None, gt_folder='gt', filenr=N
 
 #%%
 results_folder = 'poem'
-out_folder1 = 'gdl' 
-epoch = 9
-#filenr = 'case_500022_0_35.png'
+out_folder1 = 'gdl2' 
+#epoch = 99
+epoch = None
+filenr = 'case_500022_0_35.png'
 #filenr = 'case_500022_0_71.png'
 #filenr = 'case_500242_0_38.png'
-filenr = 'case_500348_0_44.png'
-#compareOuts(results_folder, out_folder1, epoch=epoch, filenr=filenr)
+#filenr = 'case_500348_0_44.png'
+compareOuts(results_folder, out_folder1, filenr=filenr, epoch=epoch)
 
 
-out_folder2 = 'gdl_surface_w' 
-#compareOuts(results_folder, out_folder2, epoch=epoch, filenr=filenr)
+out_folder2 = 'gdl2_w' 
+compareOuts(results_folder, out_folder2, filenr=filenr, epoch=epoch)
 # %%

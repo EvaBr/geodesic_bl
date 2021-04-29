@@ -15,7 +15,7 @@ reset:=$(shell tput sgr0)
 
 # CFLAGS = -O
 # DEBUG = --debug
-EPC = 50
+EPC = 100
 # EPC = 5
 
 K = 7 #num classes
@@ -25,7 +25,7 @@ P_RGX = (case_\d+)_\d+_\d+
 NET = UNet
 B_DATA = [('in_npy', tensor_transform, False), ('gt_npy', gt_transform, True)] #, ('gt_pts_npy', gt_transform, True)]
 
-TRN = $(RD)/gdl $(RD)/gdl_surface $(RD)/gdl_w $(RD)/gdl_surface_w
+TRN = $(RD)/gdl1 $(RD)/gdl2 $(RD)/gdl_ce1 $(RD)/gdl_ce1_w $(RD)/gdl1_w $(RD)/gdl2_w
 
 GRAPH = $(RD)/tra_loss.png $(RD)/val_loss.png \
 		$(RD)/val_dice.png $(RD)/tra_dice.png \
@@ -64,25 +64,35 @@ $(LIGHTPACK): $(PLT) $(TRN)
 
 
 # Training
-$(RD)/gdl: OPT = --losses="[('GeneralizedDice', {'idc': [1, 4, 5]}, 0.9), ('GeneralizedDice', {'idc': [2,6]}, 0.85), ('GeneralizedDice', {'idc': [3]}, 0.45), ('GeneralizedDice', {'idc': [0]}, 0.15)]"
-$(RD)/gdl: data/POEM/train/in_npy data/POEM/val/in_npy
-$(RD)/gdl: DATA = --folders="$(B_DATA)+[('gt_npy', gt_transform, True), ('gt_npy', gt_transform, True), ('gt_npy', gt_transform, True), ('gt_npy', gt_transform, True)]"
+$(RD)/gdl1: OPT = --losses="[('GeneralizedDice', {'idc': [1, 4, 5]}, 0.6), ('GeneralizedDice', {'idc': [2,6]}, 0.5), ('GeneralizedDice', {'idc': [3]}, 0.35), ('GeneralizedDice', {'idc': [0]}, 0.15)]"
+$(RD)/gdl1: data/POEM/train/in_npy data/POEM/val/in_npy
+$(RD)/gdl1: DATA = --folders="$(B_DATA)+[('gt_npy', gt_transform, True), ('gt_npy', gt_transform, True), ('gt_npy', gt_transform, True), ('gt_npy', gt_transform, True)]"
 
-$(RD)/gdl_w: OPT = --losses="[('WeightedGeneralizedDice', {'idc': [0.15, 0.9, 0.85, 0.45, 0.9, 0.9, 0.85]}, 1)]"
-$(RD)/gdl_w: data/POEM/train/in_npy data/POEM/val/in_npy
-$(RD)/gdl_w: DATA = --folders="$(B_DATA)+[('gt_npy', gt_transform, True)]"
+$(RD)/gdl1_w: OPT = --losses="[('WeightedGeneralizedDice', {'idc': [0.15, 0.6, 0.5, 0.35, 0.6, 0.6, 0.5]}, 1)]"
+$(RD)/gdl1_w: data/POEM/train/in_npy data/POEM/val/in_npy
+$(RD)/gdl1_w: DATA = --folders="$(B_DATA)+[('gt_npy', gt_transform, True)]"
 
-$(RD)/gdl_surface: OPT = --losses="[('GeneralizedDice', {'idc': [1, 4, 5]}, 0.9), ('GeneralizedDice', {'idc': [2,6]}, 0.8), \
-	('GeneralizedDice', {'idc': [3]}, 0.4), ('SurfaceLoss', {'idc': [1,2,3,4,5,6]}, 0.1)]"
-$(RD)/gdl_surface: data/POEM/train/in_npy data/POEM/val/in_npy
-$(RD)/gdl_surface: DATA = --folders="$(B_DATA)+[('gt_npy', gt_transform, True), ('gt_npy', gt_transform, True),\
-	('gt_npy', gt_transform, True), ('Geo_npy', from_numpy_transform, False)]" \
-	--scheduler=StealWeight --scheduler_params="{'to_steal': 0.01}"
+$(RD)/gdl2: OPT = --losses="[('GeneralizedDice', {'idc': [1, 4]}, 0.6), ('GeneralizedDice', {'idc': [2,5,6]}, 0.5), ('GeneralizedDice', {'idc': [3]}, 0.35), ('GeneralizedDice', {'idc': [0]}, 0.15)]"
+$(RD)/gdl2: data/POEM/train/in_npy data/POEM/val/in_npy
+$(RD)/gdl2: DATA = --folders="$(B_DATA)+[('gt_npy', gt_transform, True), ('gt_npy', gt_transform, True), ('gt_npy', gt_transform, True), ('gt_npy', gt_transform, True)]"
 
-$(RD)/gdl_surface_w: OPT = --losses="[('WeightedGeneralizedDice', {'idc': [0, 0.9, 0.8, 0.4, 0.9, 0.9, 0.8]}, 1), \
+$(RD)/gdl2_w: OPT = --losses="[('WeightedGeneralizedDice', {'idc': [0.15, 0.6, 0.5, 0.35, 0.6, 0.5, 0.5]}, 1)]"
+$(RD)/gdl2_w: data/POEM/train/in_npy data/POEM/val/in_npy
+$(RD)/gdl2_w: DATA = --folders="$(B_DATA)+[('gt_npy', gt_transform, True)]"
+
+$(RD)/gdl_ce1: OPT = --losses="[('GeneralizedDice', {'idc': [1, 4, 5]}, 0.6), ('GeneralizedDice', {'idc': [2,6]}, 0.5), ('GeneralizedDice', {'idc': [3]}, 0.35), ('CrossEntropy', {'idc': [0]}, 0.15)]"
+$(RD)/gdl_ce1: data/POEM/train/in_npy data/POEM/val/in_npy
+$(RD)/gdl_ce1: DATA = --folders="$(B_DATA)+[('gt_npy', gt_transform, True), ('gt_npy', gt_transform, True), ('gt_npy', gt_transform, True), ('gt_npy', gt_transform, True)]"
+
+$(RD)/gdl_ce1_w: OPT = --losses="[('WeightedGeneralizedDice', {'idc': [0, 0.6, 0.5, 0.35, 0.6, 0.6, 0.5]}, 1), ('CrossEntropy', {'idc': [0]}, 0.15)]"
+$(RD)/gdl_ce1_w: data/POEM/train/in_npy data/POEM/val/in_npy
+$(RD)/gdl_ce1_w: DATA = --folders="$(B_DATA)+[('gt_npy', gt_transform, True), ('gt_npy', gt_transform, True)]"
+
+
+#$(RD)/gdl_surface_w: OPT = --losses="[('WeightedGeneralizedDice', {'idc': [0, 0.9, 0.8, 0.4, 0.9, 0.9, 0.8]}, 1), \
 	('SurfaceLoss', {'idc': [1,2,3,4,5,6]}, 0.1)]"
-$(RD)/gdl_surface_w: data/POEM/train/in_npy data/POEM/val/in_npy
-$(RD)/gdl_surface_w: DATA = --folders="$(B_DATA)+[('gt_npy', gt_transform, True), \
+#$(RD)/gdl_surface_w: data/POEM/train/in_npy data/POEM/val/in_npy
+#$(RD)/gdl_surface_w: DATA = --folders="$(B_DATA)+[('gt_npy', gt_transform, True), \
 	('Geo_npy', from_numpy_transform, False)]" \
 	--scheduler=StealWeight --scheduler_params="{'to_steal': 0.01}"
 	
@@ -100,7 +110,7 @@ $(RD)/%:
 		--n_epoch=$(EPC) --workdir=$@_tmp --csv=metrics.csv --n_class=7 --modalities=2 --metric_axis 0 1 2 3 4 5 6 \
 		--grp_regex="$(G_RGX)" --network=$(NET) $(OPT) $(DATA) $(DEBUG)
 	mv $@_tmp $@
-
+#--compute_3d_dice \
 
 # Metrics
 ## Those need to be computed once the training is over, as we have to reconstruct the whole 3D volume
