@@ -93,7 +93,7 @@ def do_epoch(mode: str, net: Any, device: Any, loaders: List[DataLoader], epc: i
         loss_log: Tensor = torch.zeros((total_iteration, n_loss), dtype=torch.float32, device=device)
 
         three_d_dices: Optional[Tensor]
-        if compute_3d_dice:
+        if compute_3d_dice and mode=="val":
                 three_d_dices = torch.zeros((total_iteration, K), dtype=torch.float32, device=device)
         else:
                 three_d_dices = None
@@ -160,7 +160,7 @@ def do_epoch(mode: str, net: Any, device: Any, loaders: List[DataLoader], epc: i
 
                                 all_dices_pts[sm_slice, ...] = dices_pts
 
-                        if compute_3d_dice:
+                        if compute_3d_dice and mode=="val":
                                 three_d_DSC: Tensor = dice_batch(predicted_mask, target)
                                 assert three_d_DSC.shape == (K,)
 
