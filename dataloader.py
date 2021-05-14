@@ -82,6 +82,10 @@ def tensor_transform(resolution: Tuple[float, ...], K: int) -> Callable[[D], Ten
                 lambda nd: torch.tensor(nd, dtype=torch.float32)
         ])
 
+def scaled_dt_transform(resolution: Tuple[float, ...], K: int) -> Callable[[D], Tensor]:
+        return transforms.Compose([
+                lambda nd: 250*torch.tensor(nd)
+        ])
 
 def gt_transform(resolution: Tuple[float, ...], K: int) -> Callable[[D], Tensor]:
         return transforms.Compose([
@@ -341,7 +345,8 @@ class SliceDataset(Dataset):
                 return {'filenames': filename,
                         'images': final_tensors[0],
                         'gt': final_tensors[1],
-                        'labels': final_tensors[2:],
+                        #'gt_pts': final_tensors[2],
+                        'labels': final_tensors[2:], #this will contain gt_pts, if given in B_DATA in makefile. DONT FORGET TO USE FLAG --cmpute_on_pts IN THAT CASE!
                         'spacings': torch.tensor(resolution),
                         'index': index}
 

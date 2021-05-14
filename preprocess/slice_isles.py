@@ -226,14 +226,14 @@ def main(args: argparse.Namespace):
 
         with open(Path(dest_dir, "spacing.pkl"), 'wb') as f:
             pickle.dump(final_dict, f, pickle.HIGHEST_PROTOCOL)
-            print(f"Saved spacing dictionnary to {f}")
+            print(f"Saved spacing dictionary to {f}")
 
     assert len(resolution_dict.keys()) == len(CT_nii_paths)
     pprint(resolution_dict)
 
     with open(dest_path / "spacing_3d.pkl", 'wb') as f:
         pickle.dump(resolution_dict, f, pickle.HIGHEST_PROTOCOL)
-        print(f"Saved spacing dictionnary to {f}")
+        print(f"Saved spacing dictionary to {f}")
 
 
 def get_args() -> argparse.Namespace:

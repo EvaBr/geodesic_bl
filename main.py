@@ -72,7 +72,8 @@ def do_epoch(mode: str, net: Any, device: Any, loaders: List[DataLoader], epc: i
              savedir: str = "", optimizer: Any = None,
              metric_axis: List[int] = [1],
              compute_3d_dice: bool = False,
-             temperature: float = 1) -> Tuple[Tensor,
+             temperature: float = 1,
+             compute_on_pts: bool = False) -> Tuple[Tensor,
                                               Tensor,
                                               Optional[Tensor]]:
         assert mode in ["train", "val", "dual"]
@@ -96,6 +97,12 @@ def do_epoch(mode: str, net: Any, device: Any, loaders: List[DataLoader], epc: i
                 three_d_dices = torch.zeros((total_iteration, K), dtype=torch.float32, device=device)
         else:
                 three_d_dices = None
+        
+        all_dices_pts: Optional[Tensor]
+        if compute_on_pts:
+                all_dices_pts = torch.zeros((total_images, K), dtype=torch.float32, device=device)
+        else:
+                all_dices_pts = None
 
         done_img: int = 0
         done_batch: int = 0
@@ -108,6 +115,10 @@ def do_epoch(mode: str, net: Any, device: Any, loaders: List[DataLoader], epc: i
                         filenames: List[str] = data["filenames"]
                         assert not target.requires_grad
                         labels: List[Tensor] = [e.to(device) for e in data["labels"]]
+                        if compute_on_pts: 
+                                target_pts: Tensor = labels[0]
+                                assert not target_pts.requires_grad
+                                labels = labels[1:]
                         B, C, *_ = image.shape
 
                         # Reset gradients
@@ -137,10 +148,17 @@ def do_epoch(mode: str, net: Any, device: Any, loaders: List[DataLoader], epc: i
                                 loss_log[done_batch, j] = losses[j].detach()
 
                         sm_slice = slice(done_img, done_img + B)  # Values only for current batch
-
+                        
                         dices: Tensor = dice_coef(predicted_mask, target)
                         assert dices.shape == (B, K), (dices.shape, B, K)
                         all_dices[sm_slice, ...] = dices
+                        
+
+                        if compute_on_pts:
+                                dices_pts: Tensor = dice_coef(predicted_mask, target_pts)
+                                assert dices_pts.shape == (B, K), (dices_pts.shape, B, K)
+
+                                all_dices_pts[sm_slice, ...] = dices_pts
 
                         if compute_3d_dice:
                                 three_d_DSC: Tensor = dice_batch(predicted_mask, target)
@@ -177,6 +195,7 @@ def do_epoch(mode: str, net: Any, device: Any, loaders: List[DataLoader], epc: i
 
         return (loss_log.detach().cpu(),
                 all_dices.detach().cpu(),
+                all_dices_pts.detach().cpu() if all_dices_pts is not None else None,
                 three_d_dices.detach().cpu() if three_d_dices is not None else None)
 
 
@@ -212,15 +231,20 @@ def run(args: argparse.Namespace) -> Dict[str, Tensor]:
         if args.compute_3d_dice:
                 metrics["val_3d_dsc"] = cast(Tensor, torch.zeros((n_epoch, l_val, n_class)).type(torch.float32))
 
+        if args.compute_on_pts:
+                metrics["tra_dice_pts"] = cast(Tensor, torch.zeros((n_epoch, n_tra, n_class)).type(torch.float32))
+                metrics["val_dice_pts"] = cast(Tensor, torch.zeros((n_epoch, n_val, n_class)).type(torch.float32))
+                                      
         print("\n>>> Starting the training")
         for i in range(n_epoch):
                 # Do training and validation loops
-                tra_loss, tra_dice, _ = do_epoch("train", net, device, train_loaders, i,
+                tra_loss, tra_dice, tra_dice_pts, _ = do_epoch("train", net, device, train_loaders, i,
                                                  loss_fns, loss_weights, n_class,
                                                  savedir=savedir if args.save_train else "",
                                                  optimizer=optimizer,
                                                  metric_axis=args.metric_axis,
-                                                 temperature=args.temperature)
+                                                 temperature=args.temperature,
+                                                 compute_on_pts=args.compute_on_pts)
                 with torch.no_grad():
                         val_res = do_epoch("val", net, device, val_loaders, i,
                                            [loss_fns[val_f]],
@@ -229,8 +253,9 @@ def run(args: argparse.Namespace) -> Dict[str, Tensor]:
                                            savedir=savedir,
                                            metric_axis=args.metric_axis,
                                            compute_3d_dice=args.compute_3d_dice,
-                                           temperature=args.temperature)
-                        val_loss, val_dice, val_3d_dsc = val_res
+                                           temperature=args.temperature,
+                                           compute_on_pts=args.compute_on_pts)
+                        val_loss, val_dice, val_dice_pts, val_3d_dsc = val_res
 
                 # Sort and save the metrics
                 for k in metrics:
@@ -246,6 +271,7 @@ def run(args: argparse.Namespace) -> Dict[str, Tensor]:
                 #                   "val_dice": metrics["val_dice"][:, :, -1].mean(dim=1).numpy()}) #only last class. not ok for multiclass. ?
                 cols = {"tra_loss": [f"tra_Loss{m}" for m in range(n_loss)], "val_loss": [f"val_Loss{m}" for m in range(n_val_loss)], 
                         "tra_dice": [f"tra_Dice{m}" for m in range(n_class)], "val_dice": [f"val_Dice{m}" for m in range(n_class)], 
+                        "tra_dice_pts": [f"tra_Dice_pts{m}" for m in range(n_class)], "val_dice_pts": [f"val_Dice_pts{m}" for m in range(n_class)], 
                         "val_3d_dsc": [f"val_3d_Dice{m}" for m in range(n_class)]}
                 df = pd.concat([pd.DataFrame(v.mean(dim=1).numpy().tolist(), columns=cols[k]) for k,v in metrics.items()], axis=1)
 
@@ -310,6 +336,7 @@ def get_args() -> argparse.Namespace:
         parser.add_argument("--schedule", action='store_true')
         parser.add_argument("--use_sgd", action='store_true')
         parser.add_argument("--compute_3d_dice", action='store_true')
+        parser.add_argument("--compute_on_pts", action='store_true')
         parser.add_argument("--save_train", action='store_true')
         parser.add_argument("--use_spacing", action='store_true')
         parser.add_argument("--no_assert_dataloader", action='store_true')

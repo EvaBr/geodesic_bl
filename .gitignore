@@ -2,6 +2,9 @@ results/
 inference/
 archives/
 
+examples*/
+readme.txt
+
 data/*
 !data/*.lineage
 

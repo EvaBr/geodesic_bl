@@ -27,6 +27,28 @@ class CrossEntropy():
 
         return loss
 
+class WeightedCrossEntropy():
+    def __init__(self, **kwargs):
+        idc = kwargs["idc"] #now these are weights that we apply. 
+        self.idc: List[int] = [i for i,v in enumerate(idc) if v>0]
+        #If a class should be ignored, simply set weight=0 for that class.
+        device = kwargs["device"]
+        self.weights = torch.tensor([i for i in idc if i>0]).float().to(device)
+
+
+    def __call__(self, probs: Tensor, target: Tensor) -> Tensor:
+        log_p: Tensor = (probs[:, self.idc, ...] + 1e-10).log()
+        mask: Tensor = target[:, self.idc, ...].type(torch.float32)
+
+        loss = - einsum("bcwh,bcwh->c", mask, log_p)
+        loss = torch.dot(loss, self.weights)
+
+        mask = einsum("bcwh->c", mask)
+        mask = torch.dot(mask, self.weights)
+        #loss /= max(mask.sum(), 1e-10) #mask.sum() + 1e-10
+        loss /= mask + 1e-10
+        return loss
+
 
 class GeneralizedDice():
     def __init__(self, **kwargs):
@@ -56,6 +78,7 @@ class WeightedGeneralizedDice():
         # Self.idc is used to filter out some classes of the target mask. Use fancy indexing
         idc = kwargs["idc"] #now these are weights that we apply. 
         self.idc: List[int] = [i for i,v in enumerate(idc) if v>0]
+        self.opt: int = kwargs["opt"] if "opt" in kwargs else 2
         #If a class should be ignored, simply set weight=0 for that class.
         device = kwargs["device"]
         self.weights = torch.tensor([i for i in idc if i>0]).float().view(1, len(self.idc)).to(device)
@@ -69,18 +92,20 @@ class WeightedGeneralizedDice():
         tc = target[:, self.idc, ...].type(torch.float32)
 
         #OPTION 1: instead of dynamically changing weights batch-based, keep them static based on input weights
-        w: Tensor = 1 / ((self.weights+1e-10)**2)
-        intersection: Tensor = w * einsum("bkwh,bkwh->bk", pc, tc)
-        union: Tensor = w * (einsum("bkwh->bk", pc) + einsum("bkwh->bk", tc))
+        if self.opt==1:
+            w: Tensor = 1 / ((self.weights+1e-10)**2)
+            intersection: Tensor = w * einsum("bkwh,bkwh->bk", pc, tc)
+            union: Tensor = w * (einsum("bkwh->bk", pc) + einsum("bkwh->bk", tc))
 
-        divided: Tensor = 1 - 2 * (einsum("bk->b", intersection) + 1e-10) / (einsum("bk->b", union) + 1e-10)
+            divided: Tensor = 1 -  (2*einsum("bk->b", intersection) + 1e-10) / (einsum("bk->b", union) + 1e-10)
 
         #OPTION 2: imitate the computation that happens if you put in multiple/per-class GDL losses as args 
-    #    w: Tensor = 1 / ((einsum("bkwh->bk", tc).type(torch.float32) + 1e-10) ** 2)
-    #    intersection: Tensor = w * einsum("bkwh,bkwh->bk", pc, tc)
-    #    union: Tensor = w * (einsum("bkwh->bk", pc) + einsum("bkwh->bk", tc))
+        else: #if self.opt==2:
+            w: Tensor = 1 / ((einsum("bkwh->bk", tc).type(torch.float32) + 1e-10) ** 2)
+            intersection: Tensor = w * einsum("bkwh,bkwh->bk", pc, tc)
+            union: Tensor = w * (einsum("bkwh->bk", pc) + einsum("bkwh->bk", tc))
 
-    #    divided: Tensor = self.weights.sum() - 2 * einsum("bk->b", (intersection + 1e-10) / (union + 1e-10) * self.weights)
+            divided: Tensor = self.weights.sum() - 2 * einsum("bk->b", (intersection + 1e-10) / (union + 1e-10) * self.weights)
 
         loss = divided.mean()
 

@@ -15,7 +15,7 @@ reset:=$(shell tput sgr0)
 
 # CFLAGS = -O
 # DEBUG = --debug
-EPC = 100
+EPC = 150
 # EPC = 5
 
 K = 7 #num classes
@@ -23,9 +23,9 @@ BS = 8
 G_RGX = (case_\d+_\d+)_\d+
 P_RGX = (case_\d+)_\d+_\d+
 NET = UNet
-B_DATA = [('in_npy', tensor_transform, False), ('gt_npy', gt_transform, True)] #, ('gt_pts_npy', gt_transform, True)]
+B_DATA = [('in_npy', tensor_transform, False), ('gt_orig_npy', gt_transform, True)] #, ('gt_pts_npy', gt_transform, True)] #<- use gt_pts only together with flag --compute_on_pts!!!
 
-TRN = $(RD)/gdl1 $(RD)/gdl2 $(RD)/gdl_ce1 $(RD)/gdl_ce1_w $(RD)/gdl1_w $(RD)/gdl2_w
+TRN =  $(RD)/gdl_1 $(RD)/gdl_c $(RD)/gdl_w_1 $(RD)/gdl_w_c
 
 GRAPH = $(RD)/tra_loss.png $(RD)/val_loss.png \
 		$(RD)/val_dice.png $(RD)/tra_dice.png \
@@ -64,38 +64,46 @@ $(LIGHTPACK): $(PLT) $(TRN)
 
 
 # Training
-$(RD)/gdl1: OPT = --losses="[('GeneralizedDice', {'idc': [1, 4, 5]}, 0.6), ('GeneralizedDice', {'idc': [2,6]}, 0.5), ('GeneralizedDice', {'idc': [3]}, 0.35), ('GeneralizedDice', {'idc': [0]}, 0.15)]"
-$(RD)/gdl1: data/POEM/train/in_npy data/POEM/val/in_npy
-$(RD)/gdl1: DATA = --folders="$(B_DATA)+[('gt_npy', gt_transform, True), ('gt_npy', gt_transform, True), ('gt_npy', gt_transform, True), ('gt_npy', gt_transform, True)]"
+$(RD)/gdl_w_c: OPT = --losses="[('WeightedGeneralizedDice', {'idc': [0.15, 0.5, 0.4, 0.35, 0.5, 0.4, 0.4]}, 0.3), \
+	('WeightedCrossEntropy', {'idc': [0.15,1,1,1,1,1,1]}, 1)]"
+$(RD)/gdl_w_c: data/POEM/train/in_npy data/POEM/val/in_npy
+$(RD)/gdl_w_c: DATA = --folders="$(B_DATA)+[('gt_npy', gt_transform, True), \
+	('gt_npy', gt_transform, True)]" 
 
-$(RD)/gdl1_w: OPT = --losses="[('WeightedGeneralizedDice', {'idc': [0.15, 0.6, 0.5, 0.35, 0.6, 0.6, 0.5]}, 1)]"
-$(RD)/gdl1_w: data/POEM/train/in_npy data/POEM/val/in_npy
-$(RD)/gdl1_w: DATA = --folders="$(B_DATA)+[('gt_npy', gt_transform, True)]"
+$(RD)/gdl_w_1: OPT = --losses="[('WeightedGeneralizedDice', {'idc': [1, 1, 1, 1, 1, 1, 1]}, 1), \
+	('WeightedCrossEntropy', {'idc': [1,1,1,1,1,1,1]}, 1)]"
+$(RD)/gdl_w_1: data/POEM/train/in_npy data/POEM/val/in_npy
+$(RD)/gdl_w_1: DATA = --folders="$(B_DATA)+[('gt_npy', gt_transform, True), \
+	('gt_npy', gt_transform, True)]" 
 
-$(RD)/gdl2: OPT = --losses="[('GeneralizedDice', {'idc': [1, 4]}, 0.6), ('GeneralizedDice', {'idc': [2,5,6]}, 0.5), ('GeneralizedDice', {'idc': [3]}, 0.35), ('GeneralizedDice', {'idc': [0]}, 0.15)]"
-$(RD)/gdl2: data/POEM/train/in_npy data/POEM/val/in_npy
-$(RD)/gdl2: DATA = --folders="$(B_DATA)+[('gt_npy', gt_transform, True), ('gt_npy', gt_transform, True), ('gt_npy', gt_transform, True), ('gt_npy', gt_transform, True)]"
+$(RD)/gdl_c: OPT = --losses="[('GeneralizedDice', {'idc': [0]}, 0.15), \
+	('GeneralizedDice', {'idc': [1, 4]}, 0.5), \
+	('GeneralizedDice', {'idc': [5]}, 0.4), \
+	('GeneralizedDice', {'idc': [3]}, 0.35), \
+	('GeneralizedDice', {'idc': [2, 6]}, 0.4), \
+	('CrossEntropy', {'idc': [0]}, 0.15), \
+	('CrossEntropy', {'idc': [1,2,3,4,5,6]}, 1)]"
+$(RD)/gdl_c: data/POEM/train/in_npy data/POEM/val/in_npy
+$(RD)/gdl_c: DATA = --folders="$(B_DATA)+[('gt_pts_npy', gt_transform, True), \
+	('gt_pts_npy', gt_transform, True), ('gt_pts_npy', gt_transform, True), ('gt_pts_npy', gt_transform, True), \
+	('gt_pts_npy', gt_transform, True), ('gt_pts_npy', gt_transform, True), ('gt_pts_npy', gt_transform, True)]"
 
-$(RD)/gdl2_w: OPT = --losses="[('WeightedGeneralizedDice', {'idc': [0.15, 0.6, 0.5, 0.35, 0.6, 0.5, 0.5]}, 1)]"
-$(RD)/gdl2_w: data/POEM/train/in_npy data/POEM/val/in_npy
-$(RD)/gdl2_w: DATA = --folders="$(B_DATA)+[('gt_npy', gt_transform, True)]"
+$(RD)/gdl_1: OPT = --losses="[('GeneralizedDice', {'idc': [0]}, 1), \
+	('GeneralizedDice', {'idc': [1, 4]}, 1), \
+	('GeneralizedDice', {'idc': [5]}, 1), \
+	('GeneralizedDice', {'idc': [3]}, 1), \
+	('GeneralizedDice', {'idc': [2, 6]}, 1), \
+	('CrossEntropy', {'idc': [0]}, 1), \
+	('CrossEntropy', {'idc': [1,2,3,4,5,6]}, 1)]"
+$(RD)/gdl_1: data/POEM/train/in_npy data/POEM/val/in_npy
+$(RD)/gdl_1: DATA = --folders="$(B_DATA)+[('gt_pts_npy', gt_transform, True), \
+	('gt_pts_npy', gt_transform, True), ('gt_pts_npy', gt_transform, True), ('gt_pts_npy', gt_transform, True), \
+	('gt_pts_npy', gt_transform, True), ('gt_pts_npy', gt_transform, True), ('gt_pts_npy', gt_transform, True)]"
 
-$(RD)/gdl_ce1: OPT = --losses="[('GeneralizedDice', {'idc': [1, 4, 5]}, 0.6), ('GeneralizedDice', {'idc': [2,6]}, 0.5), ('GeneralizedDice', {'idc': [3]}, 0.35), ('CrossEntropy', {'idc': [0]}, 0.15)]"
-$(RD)/gdl_ce1: data/POEM/train/in_npy data/POEM/val/in_npy
-$(RD)/gdl_ce1: DATA = --folders="$(B_DATA)+[('gt_npy', gt_transform, True), ('gt_npy', gt_transform, True), ('gt_npy', gt_transform, True), ('gt_npy', gt_transform, True)]"
-
-$(RD)/gdl_ce1_w: OPT = --losses="[('WeightedGeneralizedDice', {'idc': [0, 0.6, 0.5, 0.35, 0.6, 0.6, 0.5]}, 1), ('CrossEntropy', {'idc': [0]}, 0.15)]"
-$(RD)/gdl_ce1_w: data/POEM/train/in_npy data/POEM/val/in_npy
-$(RD)/gdl_ce1_w: DATA = --folders="$(B_DATA)+[('gt_npy', gt_transform, True), ('gt_npy', gt_transform, True)]"
 
 
-#$(RD)/gdl_surface_w: OPT = --losses="[('WeightedGeneralizedDice', {'idc': [0, 0.9, 0.8, 0.4, 0.9, 0.9, 0.8]}, 1), \
-	('SurfaceLoss', {'idc': [1,2,3,4,5,6]}, 0.1)]"
-#$(RD)/gdl_surface_w: data/POEM/train/in_npy data/POEM/val/in_npy
-#$(RD)/gdl_surface_w: DATA = --folders="$(B_DATA)+[('gt_npy', gt_transform, True), \
-	('Geo_npy', from_numpy_transform, False)]" \
-	--scheduler=StealWeight --scheduler_params="{'to_steal': 0.01}"
-	
+
+
 
 
 $(RD)/%:
