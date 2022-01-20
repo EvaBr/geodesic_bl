@@ -3,7 +3,7 @@ SHELL = /usr/bin/zsh
 PP = PYTHONPATH="$(PYTHONPATH):."
 
 # RD stands for Result DIR -- useful way to report from extracted archive
-RD = results/poem
+RD = results/poem #BaselineOrig
 
 .PHONY = all boundary plot train metrics hausdorff pack
 
@@ -22,7 +22,7 @@ K = 7 #num classes
 BS = 8
 G_RGX = (case_\d+_\d+)_\d+
 P_RGX = (case_\d+)_\d+_\d+
-NET = UNet
+NET = ResidualUNet
 B_DATA = [('in_npy', tensor_transform, False), ('gt_orig_npy', gt_transform, True)] #, ('gt_pts_npy', gt_transform, True)] #<- use gt_pts only together with flag --compute_on_pts!!!
 
 TRN =  $(RD)/gdl_1 $(RD)/gdl_c $(RD)/gdl_w_1 $(RD)/gdl_w_c
@@ -64,41 +64,47 @@ $(LIGHTPACK): $(PLT) $(TRN)
 
 
 # Training
-$(RD)/gdl_w_c: OPT = --losses="[('WeightedGeneralizedDice', {'idc': [0.15, 0.5, 0.4, 0.35, 0.5, 0.4, 0.4]}, 0.3), \
+$(RD)/gdl_w_c: OPT = --losses="[('WeightedGeneralizedDice', {'idc': [0.15, 0.5, 0.4, 0.35, 0.5, 0.4, 0.4]}, 1), \
 	('WeightedCrossEntropy', {'idc': [0.15,1,1,1,1,1,1]}, 1)]"
 $(RD)/gdl_w_c: data/POEM/train/in_npy data/POEM/val/in_npy
-$(RD)/gdl_w_c: DATA = --folders="$(B_DATA)+[('gt_npy', gt_transform, True), \
-	('gt_npy', gt_transform, True)]" 
+$(RD)/gdl_w_c: DATA = --folders="$(B_DATA)+[('gt_orig_npy', gt_transform, True), \
+	('gt_orig_npy', gt_transform, True)]" 
 
 $(RD)/gdl_w_1: OPT = --losses="[('WeightedGeneralizedDice', {'idc': [1, 1, 1, 1, 1, 1, 1]}, 1), \
-	('WeightedCrossEntropy', {'idc': [1,1,1,1,1,1,1]}, 1)]"
+	('WeightedCrossEntropy', {'idc': [0.15,1,1,1,1,1,1]}, 1)]"
 $(RD)/gdl_w_1: data/POEM/train/in_npy data/POEM/val/in_npy
-$(RD)/gdl_w_1: DATA = --folders="$(B_DATA)+[('gt_npy', gt_transform, True), \
-	('gt_npy', gt_transform, True)]" 
+$(RD)/gdl_w_1: DATA = --folders="$(B_DATA)+[('gt_orig_npy', gt_transform, True), \
+	('gt_orig_npy', gt_transform, True)]" 
 
 $(RD)/gdl_c: OPT = --losses="[('GeneralizedDice', {'idc': [0]}, 0.15), \
-	('GeneralizedDice', {'idc': [1, 4]}, 0.5), \
-	('GeneralizedDice', {'idc': [5]}, 0.4), \
+	('GeneralizedDice', {'idc': [4]}, 0.5), \
+	('GeneralizedDice', {'idc': [2]}, 0.4), \
 	('GeneralizedDice', {'idc': [3]}, 0.35), \
-	('GeneralizedDice', {'idc': [2, 6]}, 0.4), \
+	('GeneralizedDice', {'idc': [4]}, 0.5), \
+	('GeneralizedDice', {'idc': [5]}, 0.4), \
+	('GeneralizedDice', {'idc': [6]}, 0.4), \
 	('CrossEntropy', {'idc': [0]}, 0.15), \
 	('CrossEntropy', {'idc': [1,2,3,4,5,6]}, 1)]"
 $(RD)/gdl_c: data/POEM/train/in_npy data/POEM/val/in_npy
-$(RD)/gdl_c: DATA = --folders="$(B_DATA)+[('gt_pts_npy', gt_transform, True), \
-	('gt_pts_npy', gt_transform, True), ('gt_pts_npy', gt_transform, True), ('gt_pts_npy', gt_transform, True), \
-	('gt_pts_npy', gt_transform, True), ('gt_pts_npy', gt_transform, True), ('gt_pts_npy', gt_transform, True)]"
+$(RD)/gdl_c: DATA = --folders="$(B_DATA)+[('gt_orig_npy', gt_transform, True), \
+	('gt_orig_npy', gt_transform, True), ('gt_orig_npy', gt_transform, True), ('gt_orig_npy', gt_transform, True), \
+	('gt_orig_npy', gt_transform, True), ('gt_orig_npy', gt_transform, True), ('gt_orig_npy', gt_transform, True), \
+	('gt_orig_npy', gt_transform, True), ('gt_orig_npy', gt_transform, True)]"
 
 $(RD)/gdl_1: OPT = --losses="[('GeneralizedDice', {'idc': [0]}, 1), \
-	('GeneralizedDice', {'idc': [1, 4]}, 1), \
-	('GeneralizedDice', {'idc': [5]}, 1), \
+	('GeneralizedDice', {'idc': [1]}, 1), \
+	('GeneralizedDice', {'idc': [2]}, 1), \
 	('GeneralizedDice', {'idc': [3]}, 1), \
-	('GeneralizedDice', {'idc': [2, 6]}, 1), \
-	('CrossEntropy', {'idc': [0]}, 1), \
+	('GeneralizedDice', {'idc': [4]}, 1), \
+	('GeneralizedDice', {'idc': [5]}, 1), \
+	('GeneralizedDice', {'idc': [6]}, 1), \
+	('CrossEntropy', {'idc': [0]}, 0.15), \
 	('CrossEntropy', {'idc': [1,2,3,4,5,6]}, 1)]"
 $(RD)/gdl_1: data/POEM/train/in_npy data/POEM/val/in_npy
-$(RD)/gdl_1: DATA = --folders="$(B_DATA)+[('gt_pts_npy', gt_transform, True), \
-	('gt_pts_npy', gt_transform, True), ('gt_pts_npy', gt_transform, True), ('gt_pts_npy', gt_transform, True), \
-	('gt_pts_npy', gt_transform, True), ('gt_pts_npy', gt_transform, True), ('gt_pts_npy', gt_transform, True)]"
+$(RD)/gdl_1: DATA = --folders="$(B_DATA)+[('gt_orig_npy', gt_transform, True), \
+	('gt_orig_npy', gt_transform, True), ('gt_orig_npy', gt_transform, True), ('gt_orig_npy', gt_transform, True), \
+	('gt_orig_npy', gt_transform, True), ('gt_orig_npy', gt_transform, True), ('gt_orig_npy', gt_transform, True), \
+	('gt_orig_npy', gt_transform, True), ('gt_orig_npy', gt_transform, True)]"
 
 
 

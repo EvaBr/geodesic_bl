@@ -23,6 +23,8 @@ from torch.utils.data import Dataset, DataLoader, Sampler
 from utils import map_, class2one_hot, one_hot2dist, id_
 from utils import one_hot, depth
 
+
+
 F = Union[Path, BinaryIO]
 D = Union[Image.Image, np.ndarray, Tensor]
 
@@ -38,6 +40,21 @@ def png_transform(resolution: Tuple[float, ...], K: int) -> Callable[[D], Tensor
                 lambda nd: torch.tensor(nd, dtype=torch.float32)
         ])
 
+def liver_dt_transform(resolution: Tuple[float, ...], K: int) -> Callable[[D], Tensor]:
+        return transforms.Compose([
+                lambda img: img[3:4, ...], #take only channel 3, as all other classes not needed
+                lambda nd: torch.tensor(nd, dtype=torch.float32)[None, ...],
+                lambda pol: torch.cat([-pol, pol], dim=1) #now we have bckg and liver channels
+        ])
+        
+def liver_gt_transform(resolution: Tuple[float, ...], K: int) -> Callable[[D], Tensor]:
+        return transforms.Compose([
+                lambda img: np.array(img)[...],
+                lambda nd: torch.tensor(nd, dtype=torch.int64)[None, ...],  # Add one dimension to simulate batch
+                partial(class2one_hot, K=K),
+                itemgetter(0),
+                lambda cel: torch.cat([1.-cel[:, 3:4, ...], cel[:, 3:4, ...]], dim=1)
+        ])
 
 def equalized_png(resolution: Tuple[float, ...], K: int) -> Callable[[D], Tensor]:
         return transforms.Compose([
@@ -81,7 +98,13 @@ def tensor_transform(resolution: Tuple[float, ...], K: int) -> Callable[[D], Ten
         return transforms.Compose([
                 lambda nd: torch.tensor(nd, dtype=torch.float32)
         ])
-
+def tensorT_transform(resolution: Tuple[float, ...], K: int) -> Callable[[D], Tensor]:
+        return transforms.Compose([
+                lambda nd: torch.tensor(nd, dtype=torch.float32),
+                lambda dd: dd.unsqueeze(0),
+                lambda dd: dd.transpose(0,-1),
+                lambda nd: nd.squeeze()
+        ])
 def scaled_dt_transform(resolution: Tuple[float, ...], K: int) -> Callable[[D], Tensor]:
         return transforms.Compose([
                 lambda nd: 250*torch.tensor(nd)
@@ -319,6 +342,7 @@ class SliceDataset(Dataset):
                 assert len(images) == len(self.folders) == len(self.transforms)
                 t_tensors: List[Tensor] = [tr(resolution, self.K)(e) for (tr, e) in zip(self.transforms, images)]
                 _, *img_shape = t_tensors[0].shape
+               # print([t.shape for t in t_tensors])
 
                 final_tensors: List[Tensor]
                 if self.augment:
