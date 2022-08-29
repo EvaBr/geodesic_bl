@@ -3,7 +3,7 @@ SHELL = /usr/bin/zsh
 PP = PYTHONPATH="$(PYTHONPATH):."
 
 # RD stands for Result DIR -- useful way to report from extracted archive
-RD = minipaper/results/GTn_INp/p0.8
+RD = minipaper/results/GTn_IN/
 
 .PHONY = all boundary plot train metrics hausdorff pack
 
@@ -23,9 +23,9 @@ BS = 16
 G_RGX = (case_\d+_\d+)_\d+
 P_RGX = (case_\d+)_\d+_\d+
 NET = ResidualUNet
-B_DATA = [('IN_p/p0.8', npy_transform, False), ('GT', gt_transform, True)] 
+B_DATA = [('IN', npy_transform, False), ('GT', gt_transform, True)] 
 
-TRN =  $(RD)/orig $(RD)/mbd $(RD)/geo $(RD)/euc 
+TRN =  $(RD)/orig $(RD)/mbd $(RD)/geo $(RD)/ambd $(RD)/ageo $(RD)/euc 
 
 GRAPH = $(RD)/tra_loss.png $(RD)/val_loss.png \
 		$(RD)/val_dice.png $(RD)/tra_dice.png \
@@ -74,12 +74,19 @@ $(RD)/euc: DATA = --folders="$(B_DATA)+[('GT_noisy', dist_map_transform, False)]
 
 $(RD)/geo: OPT = --losses="[('SurfaceLoss', {'idc': [1]}, 1)]"
 $(RD)/geo: minipaper/data_synt/train/IN minipaper/data_synt/val/IN 
-$(RD)/geo: DATA = --folders="$(B_DATA)+[('GTn_INp/p0.8/GEO', tensorT_transform, False)]" 
+$(RD)/geo: DATA = --folders="$(B_DATA)+[('GTn_IN/GEO', tensorT_transform, False)]" 
 
 $(RD)/mbd: OPT = --losses="[('SurfaceLoss', {'idc': [1]}, 1)]"
 $(RD)/mbd: minipaper/data_synt/train/IN minipaper/data_synt/val/IN 
-$(RD)/mbd: DATA = --folders="$(B_DATA)+[('GTn_INp/p0.8/MBD', tensorT_transform, False)]" 
+$(RD)/mbd: DATA = --folders="$(B_DATA)+[('GTn_IN/MBD', tensorT_transform, False)]" 
 
+$(RD)/ageo: OPT = --losses="[('SurfaceLoss', {'idc': [1]}, 1)]"
+$(RD)/ageo: minipaper/data_synt/train/IN minipaper/data_synt/val/IN 
+$(RD)/ageo: DATA = --folders="$(B_DATA)+[('aGTn_IN/GEO', tensorT_transform, False)]" 
+
+$(RD)/ambd: OPT = --losses="[('SurfaceLoss', {'idc': [1]}, 1)]"
+$(RD)/ambd: minipaper/data_synt/train/IN minipaper/data_synt/val/IN 
+$(RD)/ambd: DATA = --folders="$(B_DATA)+[('aGTn_IN/MBD', tensorT_transform, False)]" 
 
 
 
