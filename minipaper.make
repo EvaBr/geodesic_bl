@@ -26,6 +26,10 @@ NET = ResidualUNet
 B_DATA = [('IN', npy_transform, False), ('GT', gt_transform, True)] 
 B_DATA_N = [('IN', npy_transform, False), ('GT_noisy', gt_transform, True), ('GT', gt_transform, True)] 
 
+EVALDATA = val/GT
+EVALCSV = eval.csv 
+TARGETLIST = ['orig', 'orig_n', 'mbd', 'geo', 'ambd', 'ageo', 'euc']
+
 
 TRN =  $(RD)/orig $(RD)/orig_n $(RD)/mbd $(RD)/geo $(RD)/ambd $(RD)/ageo $(RD)/euc 
 
@@ -64,7 +68,6 @@ $(LIGHTPACK): $(PLT) $(TRN)
 
 
 # Training
-
 $(RD)/orig: OPT = --losses="[('GeneralizedDice', {'idc': [0,1]}, 1)]"
 $(RD)/orig: minipaper/data_synt/train/IN minipaper/data_synt/val/IN 
 $(RD)/orig: DATA = --folders="$(B_DATA)+[('GT', gt_transform, True)]"
@@ -116,6 +119,9 @@ $(RD)/%:
 		--n_epoch=$(EPC) --workdir=$@_tmp --csv=metrics.csv --n_class=$(K) --modalities=1 --metric_axis 0 1 \
 		--grp_regex="$(G_RGX)" --network=$(NET) $(NOISY) $(OPT) $(DATA) $(DEBUG) 
 	mv $@_tmp $@
+$(RD)/$(EVALCSV):
+	$(CC) $(CFLAGS) finalEval.py --dataset=$(EVALDATA) --csv=$(EVALCSV) \
+		--savedir=$@ --folders=$(TARGETLIST) --nrepochs=$(EPC)
 #--compute_3d_dice \
 
 # Metrics
