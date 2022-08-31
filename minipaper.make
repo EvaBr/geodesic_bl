@@ -3,7 +3,7 @@ SHELL = /usr/bin/zsh
 PP = PYTHONPATH="$(PYTHONPATH):."
 
 # RD stands for Result DIR -- useful way to report from extracted archive
-RD = minipaper/results/GTn_IN/
+RD = minipaper/results/SYNT/
 
 .PHONY = all boundary plot train metrics hausdorff pack
 
@@ -24,8 +24,10 @@ G_RGX = (case_\d+_\d+)_\d+
 P_RGX = (case_\d+)_\d+_\d+
 NET = ResidualUNet
 B_DATA = [('IN', npy_transform, False), ('GT', gt_transform, True)] 
+B_DATA_N = [('IN', npy_transform, False), ('GT_noisy', gt_transform, True), ('GT', gt_transform, True)] 
 
-TRN =  $(RD)/orig $(RD)/mbd $(RD)/geo $(RD)/ambd $(RD)/ageo $(RD)/euc 
+
+TRN =  $(RD)/orig $(RD)/orig_n $(RD)/mbd $(RD)/geo $(RD)/ambd $(RD)/ageo $(RD)/euc 
 
 GRAPH = $(RD)/tra_loss.png $(RD)/val_loss.png \
 		$(RD)/val_dice.png $(RD)/tra_dice.png \
@@ -65,29 +67,38 @@ $(LIGHTPACK): $(PLT) $(TRN)
 
 $(RD)/orig: OPT = --losses="[('GeneralizedDice', {'idc': [0,1]}, 1)]"
 $(RD)/orig: minipaper/data_synt/train/IN minipaper/data_synt/val/IN 
-$(RD)/orig: DATA = --folders="$(B_DATA)+[('GT_noisy', gt_transform, True)]"
+$(RD)/orig: DATA = --folders="$(B_DATA)+[('GT', gt_transform, True)]"
+
+$(RD)/orig_n: OPT = --losses="[('GeneralizedDice', {'idc': [0,1]}, 1)]"
+$(RD)/orig_n: minipaper/data_synt/train/IN minipaper/data_synt/val/IN 
+$(RD)/orig_n: DATA = --folders="$(B_DATA_N)+[('GT_noisy', gt_transform, True)]"
+$(RD)/orig_n: NOISY = --compute_on_pts
 
 
 $(RD)/euc: OPT = --losses="[('SurfaceLoss', {'idc': [1]}, 1)]"
 $(RD)/euc: minipaper/data_synt/train/IN minipaper/data_synt/val/IN 
-$(RD)/euc: DATA = --folders="$(B_DATA)+[('GT_noisy', dist_map_transform, False)]" 
+$(RD)/euc: DATA = --folders="$(B_DATA_N)+[('GT_noisy', dist_map_transform, False)]" 
+$(RD)/euc: NOISY = --compute_on_pts
 
 $(RD)/geo: OPT = --losses="[('SurfaceLoss', {'idc': [1]}, 1)]"
 $(RD)/geo: minipaper/data_synt/train/IN minipaper/data_synt/val/IN 
-$(RD)/geo: DATA = --folders="$(B_DATA)+[('GTn_IN/GEO', tensorT_transform, False)]" 
+$(RD)/geo: DATA = --folders="$(B_DATA_N)+[('GTn_IN/GEO', tensorT_transform, False)]" 
+$(RD)/geo: NOISY = --compute_on_pts
 
 $(RD)/mbd: OPT = --losses="[('SurfaceLoss', {'idc': [1]}, 1)]"
 $(RD)/mbd: minipaper/data_synt/train/IN minipaper/data_synt/val/IN 
-$(RD)/mbd: DATA = --folders="$(B_DATA)+[('GTn_IN/MBD', tensorT_transform, False)]" 
+$(RD)/mbd: DATA = --folders="$(B_DATA_N)+[('GTn_IN/MBD', tensorT_transform, False)]" 
+$(RD)/mbd: NOISY = --compute_on_pts
 
 $(RD)/ageo: OPT = --losses="[('SurfaceLoss', {'idc': [1]}, 1)]"
 $(RD)/ageo: minipaper/data_synt/train/IN minipaper/data_synt/val/IN 
-$(RD)/ageo: DATA = --folders="$(B_DATA)+[('aGTn_IN/GEO', tensorT_transform, False)]" 
+$(RD)/ageo: DATA = --folders="$(B_DATA_N)+[('aGTn_IN/GEO', tensorT_transform, False)]" 
+$(RD)/ageo: NOISY = --compute_on_pts
 
 $(RD)/ambd: OPT = --losses="[('SurfaceLoss', {'idc': [1]}, 1)]"
 $(RD)/ambd: minipaper/data_synt/train/IN minipaper/data_synt/val/IN 
-$(RD)/ambd: DATA = --folders="$(B_DATA)+[('aGTn_IN/MBD', tensorT_transform, False)]" 
-
+$(RD)/ambd: DATA = --folders="$(B_DATA_N)+[('aGTn_IN/MBD', tensorT_transform, False)]" 
+$(RD)/ambd: NOISY = --compute_on_pts
 
 
 
@@ -103,7 +114,7 @@ $(RD)/%:
 	git rev-parse --short HEAD > $@_tmp/commit_hash
 	$(CC) $(CFLAGS) main.py --dataset=$(dir $(<D)) --batch_size=$(BS) --in_memory --l_rate=0.001 --schedule \
 		--n_epoch=$(EPC) --workdir=$@_tmp --csv=metrics.csv --n_class=$(K) --modalities=1 --metric_axis 0 1 \
-		--grp_regex="$(G_RGX)" --network=$(NET) $(OPT) $(DATA) $(DEBUG)
+		--grp_regex="$(G_RGX)" --network=$(NET) $(NOISY) $(OPT) $(DATA) $(DEBUG) 
 	mv $@_tmp $@
 #--compute_3d_dice \
 

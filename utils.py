@@ -250,7 +250,17 @@ def probs2one_hot(probs: Tensor) -> Tensor:
     _, K, *_ = probs.shape
     assert simplex(probs)
 
-    res = class2one_hot(probs2class(probs), K)
+    t = probs2class(probs)
+  #  ff = class2one_hot(t, K)
+  #  print((probs.min(), probs.max()))
+  #  print((t.shape, uniq(t)))
+  #  print((ff.shape, uniq(ff)))
+    if not sset(t, [0,1]):
+        print(probs.shape)
+        print((probs.min(), probs.max()))
+        print(t.shape)
+        print(uniq(t))
+    res = class2one_hot(t, K)
     assert res.shape == probs.shape
     assert one_hot(res)
 

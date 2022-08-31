@@ -120,6 +120,8 @@ def do_epoch(mode: str, net: Any, device: Any, loaders: List[DataLoader], epc: i
                                 assert not target_pts.requires_grad
                                 labels = labels[1:]
                         B, C, *_ = image.shape
+                     #   print(image.shape)
+                     #   print([hik.shape for hik in labels])
 
                         # Reset gradients
                         if optimizer:
@@ -127,7 +129,9 @@ def do_epoch(mode: str, net: Any, device: Any, loaders: List[DataLoader], epc: i
 
                         # Forward
                         pred_logits: Tensor = net(image)
+                     #   print(pred_logits.shape)
                         pred_probs: Tensor = F.softmax(temperature * pred_logits, dim=1)
+                     #   print(pred_probs.shape)
                         predicted_mask: Tensor = probs2one_hot(pred_probs.detach())  # Used only for dice computation
                         assert not predicted_mask.requires_grad
 
@@ -313,6 +317,8 @@ def run(args: argparse.Namespace) -> Dict[str, Tensor]:
                 if "val" in metric and "loss" not in metric:
                         print(f"\t{metric}: {metrics[metric][best_epoch].mean(dim=0)}")
 
+        
+
         return metrics
 
 
@@ -366,11 +372,16 @@ def get_args() -> argparse.Namespace:
                             written at the moment, it will create several validation loader on the same topfolder (val),
                             but with different folders/bounds ; which will basically duplicate the evaluation.
                             """)
-
         args = parser.parse_args()
+
+       # args = parser.parse_args(['--dataset', 'minipaper/data_synt/', '--batch_size', '16', '--in_memory', '--l_rate', '0.001', '--schedule', \
+#	'--n_epoch','30', '--workdir', 'minipaper/results/GTn_IN//orig_n_tmp','--csv', 'metrics.csv', '--n_class', '2',  '--modalities', '1', '--metric_axis', '0', '1', \
+#	'--grp_regex', "(case_\d+_\d+)_\d+", '--network', 'ResidualUNet', '--losses', "[('GeneralizedDice', {'idc': [0,1]}, 1)]", '--folders', "[('IN', npy_transform, False), ('GT_noisy', gt_transform, True)] +[('GT_noisy', gt_transform, True)]"])
+
         if args.metric_axis == []:
                 args.metric_axis = list(range(args.n_class))
         print("\n", args)
+
 
         return args
 
