@@ -17,7 +17,8 @@ from PIL import Image, ImageOps
 from torch import Tensor
 from torchvision import transforms
 from skimage.transform import resize
-from torch._six import container_abcs
+#from torch._six import container_abcs
+import collections.abc as container_abcs
 from torch.utils.data import Dataset, DataLoader, Sampler
 
 from utils import map_, class2one_hot, one_hot2dist, id_
