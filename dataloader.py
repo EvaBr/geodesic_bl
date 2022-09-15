@@ -358,8 +358,8 @@ class SliceDataset(Dataset):
                                 assert 0 <= final_tensors[0].min() and final_tensors[0].max() <= 1, \
                                         (final_tensors[0].min(), final_tensors[0].max())
 
-                        for ttensor in final_tensors[1:]:  # Things should be one-hot or at least have the shape
-                                assert ttensor.shape == (self.K, *img_shape), (ttensor.shape, self.K, *img_shape)
+                     #   for ttensor in final_tensors[1:]:  # Things should be one-hot or at least have the shape
+                     #           assert ttensor.shape == (self.K, *img_shape), (ttensor.shape, self.K, *img_shape)
 
                         for ttensor, is_hot in zip(final_tensors, self.are_hots):  # All masks (ground truths) are class encoded
                                 if is_hot:

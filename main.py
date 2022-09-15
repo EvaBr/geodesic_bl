@@ -196,6 +196,7 @@ def do_epoch(mode: str, net: Any, device: Any, loaders: List[DataLoader], epc: i
                         tq_iter.set_postfix({**nice_dict, "loader": str(i)})
                         tq_iter.update(1)
         tq_iter.close()
+        del image, target, labels, pred_logits, pred_probs
 
         print(f"{desc} " + ', '.join(f"{k}={v}" for (k, v) in nice_dict.items()))
 
@@ -320,7 +321,11 @@ def run(args: argparse.Namespace) -> Dict[str, Tensor]:
                         print(f"\t{metric}: {metrics[metric][best_epoch].mean(dim=0)}")
 
         
-
+        del net 
+        del train_loaders 
+        del val_loaders
+        torch.cuda.empty_cache()
+        
         return metrics
 
 
