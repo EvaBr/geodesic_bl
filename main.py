@@ -214,8 +214,10 @@ def run(args: argparse.Namespace) -> Dict[str, Tensor]:
         val_f: int = args.val_loader_id
 
         loss_fns: List[List[Callable]]
+        BLids: List[int]
         loss_weights: List[List[float]]
         net, optimizer, device, loss_fns, loss_weights, scheduler = setup(args, n_class)
+        BLids = [i for i,f in enumerate(loss_fns[val_f]) if f.__class__.__name__=="SurfaceLoss"]
         train_loaders: List[DataLoader]
         val_loaders: List[DataLoader]
         train_loaders, val_loaders = get_loaders(args, args.dataset,
@@ -299,6 +301,10 @@ def run(args: argparse.Namespace) -> Dict[str, Tensor]:
                         copytree(Path(savedir, f"iter{i:03d}"), Path(best_folder))
                         torch.save(net, Path(savedir, "best.pkl"))
 
+                #update scheduler if needed:
+                current_val_bl_loss = val_loss[..., BLids].mean()
+                if scheduler.__class__.__name__=="BLbasedWeight" and current_val_bl_loss<args.bl_thr:
+                        scheduler.stop = True
                 optimizer, loss_fns, loss_weights = scheduler(i, optimizer, loss_fns, loss_weights)
 
                 # if args.schedule and (i > (best_epoch + 20)):
@@ -368,6 +374,7 @@ def get_args() -> argparse.Namespace:
         parser.add_argument("--scheduler", type=str, default="DummyScheduler")
         parser.add_argument("--scheduler_params", type=str, default="{}")
         parser.add_argument("--modalities", type=int, default=1)
+        parser.add_argument("--bl_thr", type=float, default=0.0)
         parser.add_argument("--dimensions", type=int, default=2)
         parser.add_argument('--batch_size', type=int, default=1)
         parser.add_argument("--weights", type=str, default='', help="Stored weights to restore")

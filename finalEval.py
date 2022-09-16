@@ -19,7 +19,8 @@ def finalEval(args):
     #then write to csv
 
     folders = eval(args.folders)
-    gtpath = list(Path("minipaper", args.dataset).glob('*.npy'))
+    if not isinstance(folders, list): folders = [folders]
+    gtpath = list(Path(args.dataset).glob('*.npy'))
     L = len(gtpath)
     allbckg = np.zeros((L,))
     allforg = np.zeros((L,))
@@ -38,7 +39,7 @@ def finalEval(args):
     nrepoch = args.nrepochs
 
     for outs in folders:
-        print(outs)
+        print(f"Plotting in {outs}...")
         imageid = []
         finalpath = Path( "minipaper/results",  args.savedir, outs, 'iter'+str(nrepoch-1).zfill(3), 'val')
         bestpath = Path( "minipaper/results",  args.savedir, outs, 'best_epoch', 'val')
@@ -122,19 +123,19 @@ def calcmetrics(data, savepath):
 
 def get_args() -> argparse.Namespace:
         parser = argparse.ArgumentParser(description='Hyperparams')
-        parser.add_argument('--dataset', type=str, required=True) #folder of GT. eg. 'data_synt/val/GT
+        parser.add_argument('--dataset', type=str, required=True) #folder of GT. eg. 'minipaper/data_synt/val/GT
         parser.add_argument("--csv", type=str, required=True) #where to save results
      #   parser.add_argument("--losses", type=str, required=True) #which metrics to calc. Dice etc
         parser.add_argument("--savedir", type=str, required=True) #folder inside results to save to.
 
         #parser.add_argument("--debug", action="store_true")
         parser.add_argument("--cpu", action='store_true') #
-        parser.add_argument("--folders", type=str, required=True,
-                            help = "List of outputfolders.")
+        parser.add_argument("--folders", type=str, required=True, help = "Output folder (or a list thereof).")
         parser.add_argument("--nrepochs", type=int, required=True)
-        #args = parser.parse_args()
-        args = parser.parse_args(["--nrepochs", '30',  "--folders", "['orig', 'orig_n', 'mbd', 'geo', 'ambd', 'ageo', 'euc']", "--savedir", "SYNT", "--csv",
-                "eval.csv", "--dataset", "data_synt/val/GT"])
+       
+        args = parser.parse_args()
+        #args = parser.parse_args(["--nrepochs", '30',  "--folders", "['orig', 'orig_n', 'mbd', 'geo', 'ambd', 'ageo', 'euc']", "--savedir", "SYNT", "--csv",
+        #        "eval.csv", "--dataset", "data_synt/val/GT"])
 
         return args
 
