@@ -63,8 +63,8 @@ class BLbasedWeight():
             [[min(self.upper_lim, max(0, a+plus)) for a,plus in zip(one_list,self.to_add)] for one_list in loss_weights]
 
         if self.stop:
-            for i in len(new_weights):
-                for j in len(new_weights[i]):
+            for i in range(len(new_weights)):
+                for j in range(len(new_weights[i])):
                     if not loss_fns[i][j].__class__.__name__=="SurfaceLoss":
                         new_weights[i][j]=0
 

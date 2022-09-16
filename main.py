@@ -303,7 +303,8 @@ def run(args: argparse.Namespace) -> Dict[str, Tensor]:
 
                 #update scheduler if needed:
                 current_val_bl_loss = val_loss[..., BLids].mean()
-                if scheduler.__class__.__name__=="BLbasedWeight" and current_val_bl_loss<args.bl_thr:
+                if scheduler.__class__.__name__=="BLbasedWeight" and current_val_bl_loss<args.bl_thr and current_dice>0: 
+                        #TODO instead: wait for BL to be below a threshold for 3 or so epochs?
                         scheduler.stop = True
                 optimizer, loss_fns, loss_weights = scheduler(i, optimizer, loss_fns, loss_weights)
 
