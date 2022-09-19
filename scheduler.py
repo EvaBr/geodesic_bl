@@ -47,7 +47,7 @@ class StealWeight():
 
 class BLbasedWeight():
     def __init__(self, to_add: List[float], **kwargs): # bl_thr: float
-        self.upper_lim: float = kwargs['upper_lim'] if 'upper_lim' in kwargs else 1000 #whatevs, just to avoid reaching it.
+        self.upper_lim: float = kwargs['upper_lim'] if 'upper_lim' in kwargs else [1000 for i in to_add] #whatevs, just to avoid reaching it.
         self.to_add: List[float] = to_add
         self.stop: bool = False #whether to put Dice / other non-BL loss contributions to 0
 
@@ -60,12 +60,12 @@ class BLbasedWeight():
         #assert len(self.bl_thr)<len(self.to_add) #<= if we assume we can train with only BL
         
         new_weights: List[List[float]] = \
-            [[min(self.upper_lim, max(0, a+plus)) for a,plus in zip(one_list,self.to_add)] for one_list in loss_weights]
+            [[min(ulim, max(0, a+plus)) for a,plus,ulim in zip(one_list,self.to_add,self.upper_lim)] for one_list in loss_weights]
 
         if self.stop:
             for i in range(len(new_weights)):
                 for j in range(len(new_weights[i])):
-                    if not loss_fns[i][j].__class__.__name__=="SurfaceLoss":
+                    if not loss_fns[i][j].__class__.__name__=="SurfaceLoss": #TODO: instead of retaining all surface losses, have a variable to controll which losses ghet removed
                         new_weights[i][j]=0
 
 

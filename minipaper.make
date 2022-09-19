@@ -73,35 +73,35 @@ $(RD)/orig_n: NOISY = --compute_on_pts
 $(RD)/orig_n: SCHED = --scheduler="DummyScheduler"
 
 
-$(RD)/euc: OPT = --losses="[('GeneralizedDice', {'idc': [1]}, 0.5), ('SurfaceLoss', {'idc': [1]}, 0.1)]"
+$(RD)/euc: OPT = --losses="[('GeneralizedDice', {'idc': [1]}, 1), ('SurfaceLoss', {'idc': [1]}, 0.1)]"
 $(RD)/euc: minipaper/data_liver/train/IN minipaper/data_liver/val/IN 
 $(RD)/euc: DATA = --folders="$(B_DATA_N)+[('GT_noisy', gt_transform, True), ('GT_noisy', dist_map_transform, False)]" 
 $(RD)/euc: NOISY = --compute_on_pts
-$(RD)/euc: SCHED = --scheduler="BLbasedWeight" --scheduler_params="{'to_add':[-0.1, 0.1]}"
+$(RD)/euc: SCHED = --scheduler="BLbasedWeight" --scheduler_params="{'to_add':[-0.05, 0.05]}"
 
-$(RD)/geo: OPT = --losses="[('GeneralizedDice', {'idc': [1]}, 0.5), ('SurfaceLoss', {'idc': [1]}, 0.1)]"
+$(RD)/geo: OPT = --losses="[('GeneralizedDice', {'idc': [1]}, 1), ('SurfaceLoss', {'idc': [1]}, 0.1)]"
 $(RD)/geo: minipaper/data_liver/train/IN minipaper/data_liver/val/IN 
 $(RD)/geo: DATA = --folders="$(B_DATA_N)+[('GT_noisy', gt_transform, True), ('GTn_IN/GEO', tensorT_transform, False)]" 
 $(RD)/geo: NOISY = --compute_on_pts
-$(RD)/geo: SCHED = --scheduler="BLbasedWeight" --scheduler_params="{'to_add':[-0.1, 0.1]}"
+$(RD)/geo: SCHED = --scheduler="BLbasedWeight" --scheduler_params="{'to_add':[-0.05, 0.05]}"
 
-$(RD)/mbd: OPT = --losses="[('GeneralizedDice', {'idc': [1]}, 0.5), ('SurfaceLoss', {'idc': [1]}, 0.1)]"
+$(RD)/mbd: OPT = --losses="[('GeneralizedDice', {'idc': [1]}, 1), ('SurfaceLoss', {'idc': [1]}, 0.1)]"
 $(RD)/mbd: minipaper/data_liver/train/IN minipaper/data_liver/val/IN 
 $(RD)/mbd: DATA = --folders="$(B_DATA_N)+[('GT_noisy', gt_transform, True), ('GTn_IN/MBD', tensorT_transform, False)]" 
 $(RD)/mbd: NOISY = --compute_on_pts
-$(RD)/mbd: SCHED = --scheduler="BLbasedWeight" --scheduler_params="{'to_add':[-0.1, 0.1]}"
+$(RD)/mbd: SCHED = --scheduler="BLbasedWeight" --scheduler_params="{'to_add':[-0.05, 0.05]}"
 
-$(RD)/ageo: OPT = --losses="[('GeneralizedDice', {'idc': [1]}, 0.5), ('SurfaceLoss', {'idc': [1]}, 0.1)]"
+$(RD)/ageo: OPT = --losses="[('GeneralizedDice', {'idc': [1]}, 1), ('SurfaceLoss', {'idc': [1]}, 0.1)]"
 $(RD)/ageo: minipaper/data_liver/train/IN minipaper/data_liver/val/IN 
 $(RD)/ageo: DATA = --folders="$(B_DATA_N)+[('GT_noisy', gt_transform, True), ('aGTn_IN/GEO', tensorT_transform, False)]" 
 $(RD)/ageo: NOISY = --compute_on_pts
-$(RD)/ageo: SCHED = --scheduler="BLbasedWeight" --scheduler_params="{'to_add':[-0.1, 0.1]}"
+$(RD)/ageo: SCHED = --scheduler="BLbasedWeight" --scheduler_params="{'to_add':[-0.05, 0.05], 'upper_lim':[1, 1]}"
 
-$(RD)/ambd: OPT = --losses="[('GeneralizedDice', {'idc': [1]}, 0.5), ('SurfaceLoss', {'idc': [1]}, 0.1)]"
+$(RD)/ambd: OPT = --losses="[('GeneralizedDice', {'idc': [1]}, 1), ('SurfaceLoss', {'idc': [1]}, 0.1), ('SurfaceLoss', {'idc': [1]}, 0.1)]"
 $(RD)/ambd: minipaper/data_liver/train/IN minipaper/data_liver/val/IN 
-$(RD)/ambd: DATA = --folders="$(B_DATA_N)+[('GT_noisy', gt_transform, True), ('aGTn_IN/MBD', tensorT_transform, False)]" 
+$(RD)/ambd: DATA = --folders="$(B_DATA_N)+[('GT_noisy', gt_transform, True), ('GT_noisy', dist_map_transform, False), ('aGTn_IN/MBD', tensorT_transform, False)]" 
 $(RD)/ambd: NOISY = --compute_on_pts
-$(RD)/ambd: SCHED = --scheduler="BLbasedWeight" --scheduler_params="{'to_add':[-0.1, 0.1]}"
+$(RD)/ambd: SCHED = --scheduler="BLbasedWeight" --scheduler_params="{'to_add':[-0.05, 0.05, 0.05], 'upper_lim':[1, 0.3, 1]}"
 
 
 
