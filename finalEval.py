@@ -123,7 +123,7 @@ def calcmetrics(data, savepath):
 
 def get_args() -> argparse.Namespace:
         parser = argparse.ArgumentParser(description='Hyperparams')
-        parser.add_argument('--dataset', type=str, required=True) #folder of GT. eg. 'minipaper/data_synt/val/GT
+        parser.add_argument('--dataset', type=str, required=True) #folder of GT. eg. 'data_synt/val/GT
         parser.add_argument("--csv", type=str, required=True) #where to save results
      #   parser.add_argument("--losses", type=str, required=True) #which metrics to calc. Dice etc
         parser.add_argument("--savedir", type=str, required=True) #folder inside results to save to.
