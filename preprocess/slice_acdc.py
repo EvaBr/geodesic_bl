@@ -1,25 +1,23 @@
-#!/usr/bin/env python3.6
+#!/usr/bin/env python3.10
 
 import re
+import pickle
 import random
 import argparse
 import warnings
 from pathlib import Path
 from pprint import pprint
 from functools import partial
-from typing import Any, Callable, List, Tuple
+from typing import Any, Callable, Tuple
 
 import numpy as np
 import nibabel as nib
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
 from numpy import unique as uniq
 from skimage.io import imsave
 from skimage.transform import resize
 # from PIL import Image
 
-from utils import mmap_, uc_, map_, augment, flatten_
+from utils import mmap_, uc_, map_, augment
 
 
 def norm_arr(img: np.ndarray) -> np.ndarray:
@@ -51,7 +49,7 @@ def get_p_id(path: Path) -> str:
 
 def save_slices(img_p: Path, gt_p: Path,
                 dest_dir: Path, shape: Tuple[int, int], n_augment: int,
-                img_dir: str = "img", gt_dir: str = "gt") -> Tuple[Any, Any, Any, Any]:
+                img_dir: str = "img", gt_dir: str = "gt") -> dict[str, tuple[float, float, float]]:
     p_id: str = get_p_id(img_p)
     assert "patient" in p_id
     assert p_id == get_p_id(gt_p)
@@ -73,10 +71,6 @@ def save_slices(img_p: Path, gt_p: Path,
     dy /= fy
     # print(f"After dx {dx:.04f}, dy {dy:.04f}")
 
-    # print(dx, dy, dz)
-    pixel_surface: float = dx * dy
-    voxel_volume: float = dx * dy * dz
-
     assert img.shape == gt.shape
     # assert img.shape[:-1] == shape
     assert img.dtype in [np.uint8, np.int16, np.float32]
@@ -87,6 +81,8 @@ def save_slices(img_p: Path, gt_p: Path,
     assert gt.dtype == norm_img.dtype == np.uint8
 
     resize_: Callable = partial(resize, mode="constant", preserve_range=True, anti_aliasing=False)
+
+    space_dict: dict[str, tuple[float, float, float]] = {}
 
     save_dir_img: Path = Path(dest_dir, img_dir)
     save_dir_gt: Path = Path(dest_dir, gt_dir)
@@ -114,12 +110,15 @@ def save_slices(img_p: Path, gt_p: Path,
                 a_img, a_gt = map_(np.asarray, augment(r_img, r_gt))
 
             for save_dir, data in zip([save_dir_img, save_dir_gt], [a_img, a_gt]):
-                filename = f"{p_id}_{f_id}_{k}_{j}.png"
+                filename = f"{p_id}_{f_id}_{k}_{j:02d}.png"
                 save_dir.mkdir(parents=True, exist_ok=True)
+                save_path = save_dir / filename
+
+                space_dict[save_path.stem] = (dz, dy, dx)
 
                 with warnings.catch_warnings():
                     warnings.filterwarnings("ignore", category=UserWarning)
-                    imsave(str(Path(save_dir, filename)), data)
+                    imsave(str(save_path), data)
 
     lv_gt = (gt == 3).astype(np.uint8)
     assert set(np.unique(lv_gt)) <= set([0, 1])
@@ -128,19 +127,7 @@ def save_slices(img_p: Path, gt_p: Path,
     lv_gt = resize_(lv_gt, (*shape, img.shape[-1]), order=0)
     assert set(np.unique(lv_gt)) <= set([0, 1])
 
-    slices_sizes_px = np.einsum("xyz->z", lv_gt.astype(np.int64))
-    assert np.array_equal(slices_sizes_px, sizes_2d), (slices_sizes_px, sizes_2d)
-    # slices_sizes_px = sizes_2d[...]
-    slices_sizes_px = slices_sizes_px[slices_sizes_px > 0]
-    slices_sizes_mm2 = slices_sizes_px * pixel_surface
-
-    # volume_size_px = np.einsum("xyz->", lv_gt)
-    volume_size_px = slices_sizes_px.sum()
-    volume_size_mm3 = volume_size_px * voxel_volume
-
-    # print(f"{slices_sizes_px.mean():.0f}, {volume_size_px}")
-
-    return slices_sizes_px, slices_sizes_mm2, volume_size_px, volume_size_mm3
+    return space_dict
 
 
 def main(args: argparse.Namespace):
@@ -152,35 +139,63 @@ def main(args: argparse.Namespace):
     assert not dest_path.exists()
 
     # Get all the file names, avoid the temporal ones
-    nii_paths: List[Path] = [p for p in src_path.rglob('*.nii.gz') if "_4d" not in str(p)]
+    nii_paths: list[Path] = [p for p in src_path.rglob('*.nii.gz') if "_4d" not in str(p)]
     assert len(nii_paths) % 2 == 0, "Uneven number of .nii, one+ pair is broken"
 
     # We sort now, but also id matching is checked while iterating later on
-    img_nii_paths: List[Path] = sorted(p for p in nii_paths if "_gt" not in str(p))
-    gt_nii_paths: List[Path] = sorted(p for p in nii_paths if "_gt" in str(p))
-    assert len(img_nii_paths) == len(gt_nii_paths) == 200
-    paths: List[Tuple[Path, Path]] = list(zip(img_nii_paths, gt_nii_paths))
+    img_nii_paths: list[Path] = sorted(p for p in nii_paths if "_gt" not in str(p))
+    gt_nii_paths: list[Path] = sorted(p for p in nii_paths if "_gt" in str(p))
+    assert len(img_nii_paths) == len(gt_nii_paths) == 200  # Hardcode that value for sanity test
+    paths: list[Tuple[Path, Path]] = list(zip(img_nii_paths, gt_nii_paths))
 
     print(f"Found {len(img_nii_paths)} pairs in total")
     pprint(paths[:5])
 
-    pids: List[str] = sorted(set(map_(get_p_id, img_nii_paths)))
+    pids: list[str] = sorted(set(map_(get_p_id, img_nii_paths)))
+    # Sanity test: there is two scans per patients: we don't want to mix them up
     assert len(pids) == (len(img_nii_paths) // 2), (len(pids), len(img_nii_paths))
 
-    # validation_pids: List[str] = random.sample(pids, args.retains)
     random.shuffle(pids)  # Shuffle before to avoid any problem if the patients are sorted in any way
-    validation_slice = slice(args.fold * args.retains, (args.fold + 1) * args.retains)
-    validation_pids: List[str] = pids[validation_slice]
+    fold_size: int = args.retains + args.retains_test
+    offset: int = args.fold * fold_size
+    # offset by (fold_size) at the beginning
+    validation_slice = slice(offset, offset + args.retains)
+    # offset by (fold_size + val_retains) at the beginning)
+    test_slice = slice(offset + args.retains, offset + args.retains + args.retains_test)
+
+    validation_pids: list[str] = pids[validation_slice]
+    test_pids: list[str] = pids[test_slice]
+    training_pids: list[str] = [pid for pid in pids if (pid not in validation_pids) and (pid not in test_pids)]
+
     assert len(validation_pids) == args.retains
+    assert (len(validation_pids) + len(training_pids) + len(test_pids)) == len(pids)
+    assert set(validation_pids).union(training_pids).union(test_pids) == set(pids)
+    assert set(validation_pids).isdisjoint(training_pids)
+    assert set(validation_pids).isdisjoint(test_pids)
+    assert set(test_pids).isdisjoint(training_pids)
 
-    validation_paths: List[Tuple[Path, Path]] = [p for p in paths if get_p_id(p[0]) in validation_pids]
-    training_paths: List[Tuple[Path, Path]] = [p for p in paths if get_p_id(p[0]) not in validation_pids]
+    # assert len(test_pids) == args.retains_test
+
+    validation_paths: list[Tuple[Path, Path]] = [p for p in paths if get_p_id(p[0]) in validation_pids]
+    test_paths: list[Tuple[Path, Path]] = [p for p in paths if get_p_id(p[0]) in test_pids]
+    training_paths: list[Tuple[Path, Path]] = [p for p in paths if get_p_id(p[0]) in training_pids]
+
+    # redundant sanity, but you never know
     assert set(validation_paths).isdisjoint(set(training_paths))
-    assert len(paths) == (len(validation_paths) + len(training_paths))
+    assert set(validation_paths).isdisjoint(set(test_paths))
+    assert set(test_paths).isdisjoint(set(training_paths))
+    assert len(paths) == (len(validation_paths) + len(training_paths) + len(test_paths))
     assert len(validation_paths) == 2 * args.retains
-    assert len(training_paths) == (len(paths) - 2 * args.retains)
+    assert len(test_paths) == 2 * args.retains_test
+    assert len(training_paths) == (len(paths) - 2 * fold_size)
 
-    for mode, _paths, n_augment in zip(["train", "val"], [training_paths, validation_paths], [args.n_augment, 0]):
+    resolution_dict: dict[str, tuple[float, float, float]] = {}
+
+    for mode, _paths, n_augment in zip(["train", "val", "test"],
+                                       [training_paths, validation_paths, test_paths],
+                                       [args.n_augment, 0, 0]):
+        if not _paths:
+            continue
         img_paths, gt_paths = zip(*_paths)  # type: Tuple[Any, Any]
 
         dest_dir = Path(dest_path, mode)
@@ -188,34 +203,19 @@ def main(args: argparse.Namespace):
         assert len(img_paths) == len(gt_paths)
 
         pfun = partial(save_slices, dest_dir=dest_dir, shape=args.shape, n_augment=n_augment)
-        all_sizes = mmap_(uc_(pfun), zip(img_paths, gt_paths))
+        all_spacedicts = mmap_(uc_(pfun), zip(img_paths, gt_paths))
         # for paths in tqdm(list(zip(img_paths, gt_paths)), ncols=50):
         #     uc_(pfun)(paths)
 
-        all_slices_sizes_px, all_slices_sizes_mm2, all_volume_size_px, all_volume_size_mm3 = zip(*all_sizes)
+        for space_dict in all_spacedicts:
+            resolution_dict |= space_dict
 
-        flat_sizes_px = flatten_(all_slices_sizes_px)
-        flat_sizes_mm2 = flatten_(all_slices_sizes_mm2)
-        print("px", len(flat_sizes_px), min(flat_sizes_px), max(flat_sizes_px))
-        print('\t', "px 5/95", np.percentile(flat_sizes_px, 5), np.percentile(flat_sizes_px, 95))
-        print('\t', "mm2", f"{min(flat_sizes_mm2):.02f}", f"{max(flat_sizes_mm2):.02f}")
+    if args.verbose:
+        pprint(resolution_dict)
 
-        _, axes = plt.subplots(nrows=2, ncols=2)
-        axes = axes.flatten()
-
-        axes[0].set_title("Slice surface (pixel)")
-        axes[0].boxplot(all_slices_sizes_px, whis=[0, 100])
-
-        axes[1].set_title("Slice surface (mm2)")
-        axes[1].boxplot(all_slices_sizes_mm2, whis=[0, 100])
-
-        axes[2].set_title("LV volume (pixel)")
-        axes[2].hist(all_volume_size_px, bins=len(all_volume_size_px) // 2)
-
-        axes[3].set_title("LV volume (mm3)")
-        axes[3].hist(all_volume_size_mm3, bins=len(all_volume_size_px) // 2)
-
-        # plt.show()
+    with open(dest_path / "spacing_3d.pkl", 'wb') as f:
+        pickle.dump(resolution_dict, f, pickle.HIGHEST_PROTOCOL)
+        print(f"Saved spacing dictionnary to {f}")
 
 
 def get_args() -> argparse.Namespace:
@@ -227,10 +227,13 @@ def get_args() -> argparse.Namespace:
     parser.add_argument('--gt_dir', type=str, default="GT")
     parser.add_argument('--shape', type=int, nargs="+", default=[256, 256])
     parser.add_argument('--retains', type=int, default=25, help="Number of retained patient for the validation data")
+    parser.add_argument('--retains_test', type=int, default=0, help="Number of retained patient for the test data")
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--fold', type=int, default=0)
     parser.add_argument('--n_augment', type=int, default=0,
                         help="Number of augmentation to create per image, only for the training set")
+
+    parser.add_argument('--verbose', action='store_true', help="Print more info (space dict at the end, for now).")
     args = parser.parse_args()
     random.seed(args.seed)
 
