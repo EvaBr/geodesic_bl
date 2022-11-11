@@ -20,9 +20,7 @@ from utils import map_
 from utils import depth
 from utils import probs2one_hot, probs2class
 from utils import dice_coef, save_images, tqdm_, dice_batch
-import warnings
 
-warnings.filterwarnings("ignore")
 
 def setup(args, n_class: int) -> Tuple[Any, Any, Any, List[List[Callable]], List[List[float]], Callable]:
         print("\n>>> Setting up")

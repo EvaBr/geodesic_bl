@@ -18,6 +18,9 @@ from utils import np_class2one_hot, one_hot2dist
 def to_distmap(sources: tuple[Path, Path], dest: Path) -> None:
         import torch
         import FastGeodis
+        lamb = {"intensity": 1,
+                "geodesic": .5,
+                "euclidean": 0}[args.distmap_mode]
 
         labels, img = sources
         K: int = args.K
@@ -47,8 +50,8 @@ def to_distmap(sources: tuple[Path, Path], dest: Path) -> None:
                 assert img_torch.shape == lab_torch.shape, (img_torch.shape, lab_torch.shape)
 
                 # Have to switch the labels
-                pos_dist = FastGeodis.generalised_geodesic2d(img_torch, neg_torch, 1e10, args.lamb, 2)
-                neg_dist = FastGeodis.generalised_geodesic2d(img_torch, lab_torch, 1e10, args.lamb, 2)
+                pos_dist = FastGeodis.generalised_geodesic2d(img_torch, neg_torch, 1e10, lamb, 2)
+                neg_dist = FastGeodis.generalised_geodesic2d(img_torch, lab_torch, 1e10, lamb, 2)
 
                 res[k, ...] = pos_dist[0, 0].cpu().numpy() - neg_dist[0, 0].cpu().numpy()
 
@@ -184,12 +187,14 @@ def get_args() -> argparse.Namespace:
         parser.add_argument('--mode', type=str, choices=DICT_FN.keys())
 
         parser.add_argument('-K', type=int, default=2)
-        parser.add_argument('--distmap_mode', type=str, choices=["euclidean", "geodesic"], default="euclidean")
+        parser.add_argument('--distmap_mode', type=str,
+                            choices=["euclidean", "geodesic", "intensity"],
+                            default="euclidean")
         parser.add_argument('--distmap_negative', action="store_true")
         parser.add_argument('--scaling_factor', type=float, default=1)
         parser.add_argument('--alpha', type=float, default=1)
         parser.add_argument('--size', type=int, nargs=2, default=None)
-        parser.add_argument('--lamb', type=float, default=1)
+        # parser.add_argument('--lamb', type=float, default=1)
 
         parser.add_argument('--norm_dist', action="store_true",
                             help="Normalize the signed distance map, while paying attention not to shift the sign.")

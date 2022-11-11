@@ -275,7 +275,7 @@ class SliceDataset(Dataset):
 
                 if not self.quiet:
                         print(f">> Initializing {self.__class__.__name__} with {len(self.filenames)} images")
-                        print(f"> {self.dimensions}")
+                        print(f"> {self.dimensions=}")
                         if self.augment:
                                 print("> Will augment data online")
 
