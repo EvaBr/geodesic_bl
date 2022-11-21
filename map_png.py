@@ -12,10 +12,10 @@ from tqdm import tqdm
 from PIL import Image, ImageOps
 
 from utils import mmap_, starmmap_
-from utils import np_class2one_hot, one_hot2dist
+from utils import np_class2one_hot, one_hot2dist, dm_rasterscan
 
 
-def to_distmap(sources: tuple[Path, Path], dest: Path) -> None:
+def to_distmap_fastgeodis(sources: tuple[Path, Path], dest: Path) -> None:
         import torch
         import FastGeodis
         lamb = {"intensity": 1,
@@ -60,6 +60,75 @@ def to_distmap(sources: tuple[Path, Path], dest: Path) -> None:
                 res /= max_value
 
                 assert -1 <= res.min() and res.max() <= 1
+
+        np.save(dest, res)
+
+        for k in range(K):
+                png_dest: Path = root / f"{topfolder}_{k}" / f"{filename}.png"
+                plt.imsave(png_dest, res[k], cmap='viridis')
+
+
+def to_distmap(sources: tuple[Path, Path], dest: Path) -> None:
+        labels, img = sources
+        K: int = args.K
+
+        filename: str = dest.stem
+        topfolder: str = dest.parents[0].name
+        root: Path = dest.parents[1]
+
+        lab_arr: np.ndarray = np.asarray(Image.open(labels).convert(mode="L"))
+        img_arr: np.ndarray = np.asarray(Image.open(img).convert(mode='L')).astype(np.float32)
+        assert lab_arr.shape == img_arr.shape
+        assert lab_arr.dtype == np.uint8
+
+        lab_oh: np.ndarray = np_class2one_hot(lab_arr[None, ...], K)[0]
+        assert lab_oh.shape == (K, *img_arr.shape), lab_oh.shape
+
+        res: np.ndarray = np.zeros(lab_oh.shape, dtype=np.float32)
+
+        neg_oh: np.ndarray = np.logical_not(lab_oh)
+        dists: np.ndarray = dm_rasterscan(img_arr, np.concatenate([lab_oh, neg_oh]),
+                                          scaling_factor=args.scaling_factor, alpha=args.alpha)
+
+        max_value: float = dists.max() if args.norm_dist else 1.
+
+        for k in range(K):
+                post_dist, neg_dist = dists[[k, k + K]]
+                res[k, ...] = post_dist / max_value - neg_dist / max_value
+
+                if args.distmap_negative:
+                        posmask = lab_oh[k]
+                        if not posmask.any():
+                                w, h = img_arr.shape
+                                Xs, Ys = np.mgrid[:w, :h]
+                                Xs -= w // 2
+                                Ys -= h // 2
+
+                                res[k, ...] = (Xs**2 + Ys**2)**.5 + 1
+                                res[k, ...] /= res[k, ...].max()
+
+                if args.norm_dist:
+                        assert -1 <= res[k].min() and res[k].max() <= 1
+
+                # negmask = neg_oh[k]
+                # if posmask.any() and k >= 1:
+                #         print(f"{post_dist.min()=}, {post_dist.max()=}, {neg_dist.min()=}, {neg_dist.max()=}")
+
+                #         min_ = min(post_dist.min(), -neg_dist.max())
+                #         max_ = max(post_dist.max(), -neg_dist.min())
+                #         print(f"{min_=}, {max_=}")
+                #         figs = [(posmask, "posmask", [0, 1]),
+                #                 (post_dist, "post_dist", [min_, max_]),
+                #                 (negmask, "negmask", [0, 1]),
+                #                 (-neg_dist, "neg_dist", [min_, max_]),
+                #                 (res[k], "res", [min_, max_])]
+
+                #         _, axes = plt.subplots(nrows=1, ncols=len(figs))
+
+                #         for axe, (im, title, (vmin, vmax)) in zip(axes, figs):
+                #                 axe.set_title(title)
+                #                 axe.imshow(im, vmin=vmin, vmax=vmax)
+                #         plt.show()
 
         np.save(dest, res)
 

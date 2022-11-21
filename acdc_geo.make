@@ -30,7 +30,8 @@ NET = ENet
 
 TRN = $(RD)/ce \
         $(RD)/ce_boundary_geo_point \
-        $(RD)/ce_boundary_geo_point_master \
+        $(RD)/ce_boundary_eucl_point_master \
+        $(RD)/ce_boundary_eucl_point_geodis \
 	$(RD)/ce_boundary_eucl_point \
 	$(RD)/ce_boundary_int_point \
 
@@ -204,10 +205,10 @@ $(RD)/boundary_geo_point: DATA = --folders="[('img_npy', npy_transform, False), 
 
 
 ### Combined
-# $(RD)/ce_boundary_eucl_point: OPT = --losses="[('CrossEntropy', {'idc': [1, 2, 3]}, 1),\
-# 	('BoundaryLoss', {'idc': [1, 2, 3]}, 1)]" --ignore_norm_dataloader
-# $(RD)/ce_boundary_eucl_point: data/ACDC-2D-GEO/train/random data/ACDC-2D-GEO/val/random data/ACDC-2D-GEO/train/euclid_point data/ACDC-2D-GEO/val/euclid_point | npy euclid
-# $(RD)/ce_boundary_eucl_point: DATA = --folders="[('img_npy', npy_transform, False), ('gt_npy', from_numpy_transform, True), ('random_npy', gt_transform, True), ('euclid_point', from_numpy_transform, False)]"
+$(RD)/ce_boundary_eucl_point_geodis: OPT = --losses="[('CrossEntropy', {'idc': [1, 2, 3]}, 1),\
+	('BoundaryLoss', {'idc': [1, 2, 3]}, 1)]" --ignore_norm_dataloader
+$(RD)/ce_boundary_eucl_point_geodis: data/ACDC-2D-GEO/train/random data/ACDC-2D-GEO/val/random data/ACDC-2D-GEO/train/euclid_point data/ACDC-2D-GEO/val/euclid_point | npy euclid
+$(RD)/ce_boundary_eucl_point_geodis: DATA = --folders="[('img_npy', npy_transform, False), ('gt_npy', from_numpy_transform, True), ('random_npy', gt_transform, True), ('euclid_point', from_numpy_transform, False)]"
 
 $(RD)/ce_boundary_eucl_point: OPT = --losses="[('CrossEntropy', {'idc': [1, 2, 3]}, 1),\
 	('BoundaryLoss', {'idc': [1, 2, 3]}, 1)]"

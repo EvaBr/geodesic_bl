@@ -4,8 +4,8 @@ import argparse
 from pathlib import Path
 from operator import add
 from multiprocessing.pool import Pool
+from functools import lru_cache, partial
 from random import random, uniform, randint
-from functools import partial
 
 from typing import Any, Callable, Iterable, List, Set, Tuple, TypeVar, Union, cast
 
@@ -18,7 +18,7 @@ from torch import Tensor
 from skimage.io import imsave
 from PIL import Image, ImageOps
 from medpy.metric.binary import hd
-from scipy.ndimage import distance_transform_edt as eucl_distance
+from scipy.ndimage import distance_transform_edt as eucl_distance, convolve
 
 
 colors = ["c", "r", "g", "b", "m", 'y', 'k', 'chartreuse', 'coral', 'gold', 'lavender',
@@ -406,3 +406,118 @@ def center_pad(arr: np.ndarray, target_shape: Tuple[int, ...]) -> np.ndarray:
     assert res.shape == target_shape, (res.shape, target_shape)
 
     return res
+
+
+##
+def pass_2D(img, distance, k_p, squared_dist, scaling_factor, alpha=1.0, backward=False):
+        W, H = img.shape
+        C, W_, H_ = distance.shape
+        assert W == W_ and H == H_
+        K = len(k_p['h'])
+
+        precomp_diffs = np.zeros((W, H, K), dtype=np.float32)
+
+        for i, (kw, kh) in enumerate(zip(k_p['w'], k_p['h'])):
+                kernel = np.zeros((3, 3))
+                kernel[1, 1] = -1
+                kernel[1 + kw, 1 + kh] = 1
+                assert kernel.sum() == 0 and np.abs(kernel).sum() == 2
+
+                # This part is commong for all classes
+                abs_diffs = convolve(img[...], kernel, origin=[kw, kh])
+                dist_pq = alpha * (abs_diffs**2 * scaling_factor + squared_dist[i])**.5
+                assert dist_pq.shape == (W, H)
+
+                precomp_diffs[:, :, i] = dist_pq
+
+        # Coordinates also are common for all classes
+        hs, ws = np.mgrid[H - 1:-1:-1, W - 1:-1:-1] if backward else np.mgrid[:H, :W]
+        hs = hs.flatten()
+        ws = ws.flatten()
+        assert hs.shape == ws.shape == (W * H,)
+
+        # We tile them to match the size of the kernel, then we shift all coords by the kernel value
+        nws_ = np.tile(ws, (K, 1)).T + k_p['w']
+        assert nws_.shape == (W * H, K)
+        nhs_ = np.tile(hs, (K, 1)).T + k_p['h']
+        assert nhs_.shape == (W * H, K)
+
+        # Pre-comp mask (common across C) of value coordinates
+        valid_ = (nws_ >= 0) & (nhs_ >= 0) & (nws_ < W) & (nhs_ < H)
+        assert valid_.shape == (W * H, K)
+
+        for w, h, nws, nhs, valid in zip(ws, hs, nws_, nhs_, valid_):
+                p_dist = distance[:, w, h]
+                assert p_dist.shape == (C,), p_dist.shape
+
+                if not valid.any():
+                        continue
+                if __debug__:
+                        K_ = valid.sum()
+
+                diffs = precomp_diffs[w, h, valid]
+                assert valid.shape == (K,)
+                assert diffs.shape == (K_,), diffs.shape  # Some might not be valid
+
+                qdists = distance[:, nws[valid], nhs[valid]]
+                assert qdists.shape == (C, K_), qdists.shape
+
+                proposed_dists = diffs + qdists  # Beware of the broadcasting
+                assert proposed_dists.shape == (C, K_)
+
+                distance[:, w, h] = np.minimum(p_dist, proposed_dists.min(axis=1))
+
+        return distance
+
+
+@lru_cache()
+def get_2d_kernel(backward=False):
+        if backward:
+                # kernel for the backward scan (paper Toivanen, table 4)
+                kh_b = np.array([0, 1, 1, 1])
+                kw_b = np.array([1, -1, 0, 1])
+
+                k_p = {'h': kh_b, 'w': kw_b}
+
+                # squared Euclidean distance between point p to point q (point in kernel)
+                # for the pixels in the backward kernel
+                squared_dist = np.array([1.0, 2.0, 1.0, 2.0])
+
+        else:
+                # kernel for the forward scan (paper Toivanen, table 3)
+                kh_f = np.array([-1, -1, -1, 0])
+                kw_f = np.array([-1, 0, 1, -1])
+
+                k_p = {'h': kh_f, 'w': kw_f}
+
+                # squared Euclidean distance between point p to point q (point in kernel)
+                # for the pixels in the forward kernel
+                squared_dist = np.array([2.0, 1.0, 2.0, 1.0])
+
+        return k_p, squared_dist
+
+
+def dm_rasterscan(im: np.ndarray, seeds: np.ndarray, its: int = 2,
+                  scaling_factor: int = 1, alpha: float = 1.) -> np.ndarray:
+        W, H = im.shape
+        C, W_, H_ = seeds.shape
+        assert W == W_ and H == H_
+
+        img: np.ndarray = im.astype(np.float32).copy()
+
+        # setting all initial distances at a high value except the seeds..
+        distance = 1.0e10 * np.ones(seeds.shape, dtype=np.float32)
+        distance[seeds == 1] = 0
+
+        for it in range(its):
+                # forward scan
+                k_f, squared_dist_f = get_2d_kernel()
+                distance = pass_2D(img, distance, k_f, squared_dist_f,
+                                   scaling_factor=scaling_factor, alpha=alpha)
+
+                # backward scan
+                k_b, squared_dist_b = get_2d_kernel(backward=True)
+                distance = pass_2D(img, distance, k_b, squared_dist_b,
+                                   scaling_factor=scaling_factor, alpha=alpha, backward=True)
+
+        return distance
