@@ -15,7 +15,7 @@ from utils import mmap_, starmmap_
 from utils import np_class2one_hot, one_hot2dist, dm_rasterscan
 
 
-def to_distmap_fastgeodis(sources: tuple[Path, Path], dest: Path) -> None:
+def to_distmap(sources: tuple[Path, Path], dest: Path) -> None:
         import torch
         import FastGeodis
         lamb = {"intensity": 1,
@@ -68,7 +68,7 @@ def to_distmap_fastgeodis(sources: tuple[Path, Path], dest: Path) -> None:
                 plt.imsave(png_dest, res[k], cmap='viridis')
 
 
-def to_distmap(sources: tuple[Path, Path], dest: Path) -> None:
+def to_distmap_orig(sources: tuple[Path, Path], dest: Path) -> None:
         labels, img = sources
         K: int = args.K
 
@@ -219,6 +219,7 @@ def resize(sources: tuple[Path, ...]) -> None:
 
 DICT_FN: dict[str, Callable] = {
     "to_distmap": to_distmap,
+    "to_distmap_orig": to_distmap_orig,
     "to_euclid": to_euclid,
     "to_npy": to_npy,
     "to_one_hot_npy": to_one_hot_npy,
