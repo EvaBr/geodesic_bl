@@ -3,7 +3,7 @@ PP = PYTHONPATH="$(PYTHONPATH):."
 SHELL = zsh
 
 
-.PHONY: all euclid geodist train plot view view_euclid view_labels npy pack report weak
+.PHONY: all euclid geodist intensity train plot view view_euclid view_labels npy pack report weak
 
 red:=$(shell tput bold ; tput setaf 1)
 green:=$(shell tput bold ; tput setaf 2)
@@ -18,7 +18,7 @@ RD = results/acdc_geo
 
 # CFLAGS = -O
 # DEBUG = --debug
-EPC = 300
+EPC = 150
 BS = 8  # BS stands for Batch Size
 K = 4  # K for class
 
@@ -29,11 +29,11 @@ NET = ENet
 
 
 TRN = $(RD)/ce \
-        $(RD)/ce_boundary_geo_point_geodis \
-        $(RD)/ce_boundary_geo_point \
-        $(RD)/ce_boundary_eucl_point_geodis \
-	$(RD)/ce_boundary_eucl_point \
-	$(RD)/ce_boundary_int_point_geodis \
+	$(RD)/ce_bl_eucl_point_live \
+	$(RD)/ce_bl_eucl_point_numpy \
+	$(RD)/ce_bl_eucl_point_fast \
+	$(RD)/ce_bl_geo_point_fast \
+	$(RD)/ce_bl_int_point_fast
 
 
 GRAPH = $(RD)/val_dice.png $(RD)/tra_dice.png \
@@ -114,59 +114,14 @@ data/ACDC-2D-GEO/train/random_npy data/ACDC-2D-GEO/val/random_npy: MODE = to_npy
 	mv $@_tmp $@
 
 
-geodist: data/ACDC-2D-GEO/train/geodist data/ACDC-2D-GEO/val/geodist \
-	data/ACDC-2D-GEO/train/geodist_point data/ACDC-2D-GEO/val/geodist_point \
-	data/ACDC-2D-GEO/train/geodist_point_python data/ACDC-2D-GEO/val/geodist_point_python \
-	data/ACDC-2D-GEO/train/intensity_point data/ACDC-2D-GEO/val/intensity_point
-euclid: data/ACDC-2D-GEO/train/euclid_point data/ACDC-2D-GEO/val/euclid_point \
-	data/ACDC-2D-GEO/train/euclid_point_python data/ACDC-2D-GEO/val/euclid_point_python
+euclid: data/ACDC-2D-GEO/train/eucl_point_numpy data/ACDC-2D-GEO/val/eucl_point_numpy \
+	data/ACDC-2D-GEO/train/eucl_point_fast data/ACDC-2D-GEO/val/eucl_point_fast
+geodist: data/ACDC-2D-GEO/train/geo_point_fast data/ACDC-2D-GEO/val/geo_point_fast
+intensity: data/ACDC-2D-GEO/train/int_point_fast data/ACDC-2D-GEO/val/int_point_fast
 
-data/ACDC-2D-GEO/%/geodist: data/ACDC-2D-GEO/%/gt
-	$(info $(yellow)$(CC) $(CFLAGS) map_png.py --mode to_distmap --distmap_mode geodesic $@ $(reset))
-	rm -rf $@_tmp $@_tmp_0 $@_tmp_1 $@_tmp_2 $@_tmp_3
-	mkdir -p $@_tmp $@_tmp_0 $@_tmp_1 $@_tmp_2 $@_tmp_3
-	$(CC) $(CFLAGS) map_png.py --mode to_distmap --src $< $(<D)/img --dest $@_tmp \
-		-K $(K) --distmap_mode geodesic --norm_dist
-	mv $@_tmp $@
-	mv $@_tmp_0 $@_0
-	mv $@_tmp_1 $@_1
-	mv $@_tmp_2 $@_2
-	mv $@_tmp_3 $@_3
-data/ACDC-2D-GEO/%/geodist_point: data/ACDC-2D-GEO/%/random
-	$(info $(yellow)$(CC) $(CFLAGS) map_png.py --mode to_distmap --distmap_mode geodesic $@ $(reset))
-	rm -rf $@_tmp $@_tmp_0 $@_tmp_1 $@_tmp_2 $@_tmp_3
-	mkdir -p $@_tmp $@_tmp_0 $@_tmp_1 $@_tmp_2 $@_tmp_3
-	$(CC) $(CFLAGS) map_png.py --mode to_distmap --src $< $(<D)/img --dest $@_tmp \
-		-K $(K) --distmap_mode geodesic --norm_dist
-	mv $@_tmp $@
-	mv $@_tmp_0 $@_0
-	mv $@_tmp_1 $@_1
-	mv $@_tmp_2 $@_2
-	mv $@_tmp_3 $@_3
-data/ACDC-2D-GEO/%/geodist_point_python: data/ACDC-2D-GEO/%/random
-	$(info $(yellow)$(CC) $(CFLAGS) map_png.py --mode to_distmap --distmap_mode geodesic $@ $(reset))
-	rm -rf $@_tmp $@_tmp_0 $@_tmp_1 $@_tmp_2 $@_tmp_3
-	mkdir -p $@_tmp $@_tmp_0 $@_tmp_1 $@_tmp_2 $@_tmp_3
-	$(CC) $(CFLAGS) map_png.py --mode to_distmap_orig --src $< $(<D)/img --dest $@_tmp \
-		-K $(K) --norm_dist
-	mv $@_tmp $@
-	mv $@_tmp_0 $@_0
-	mv $@_tmp_1 $@_1
-	mv $@_tmp_2 $@_2
-	mv $@_tmp_3 $@_3
-data/ACDC-2D-GEO/%/euclid_point: data/ACDC-2D-GEO/%/random
-	$(info $(yellow)$(CC) $(CFLAGS) map_png.py --mode to_distmap --distmap_mode euclidean $@ $(reset))
-	rm -rf $@_tmp $@_tmp_0 $@_tmp_1 $@_tmp_2 $@_tmp_3
-	mkdir -p $@_tmp $@_tmp_0 $@_tmp_1 $@_tmp_2 $@_tmp_3
-	$(CC) $(CFLAGS) map_png.py --mode to_distmap --src $< $(<D)/img --dest $@_tmp \
-		-K $(K) --distmap_mode euclidean --norm_dist
-	mv $@_tmp $@
-	mv $@_tmp_0 $@_0
-	mv $@_tmp_1 $@_1
-	mv $@_tmp_2 $@_2
-	mv $@_tmp_3 $@_3
-data/ACDC-2D-GEO/%/euclid_point_python: data/ACDC-2D-GEO/%/random
-	$(info $(yellow)$(CC) $(CFLAGS) map_png.py --mode to_distmap --distmap_mode euclidean $@ $(reset))
+
+data/ACDC-2D-GEO/%/eucl_point_numpy: data/ACDC-2D-GEO/%/random
+	$(info $(yellow)$(CC) $(CFLAGS) map_png.py --mode to_euclid $@ $(reset))
 	rm -rf $@_tmp $@_tmp_0 $@_tmp_1 $@_tmp_2 $@_tmp_3
 	mkdir -p $@_tmp $@_tmp_0 $@_tmp_1 $@_tmp_2 $@_tmp_3
 	$(CC) $(CFLAGS) map_png.py --mode to_euclid --src $< $(<D)/img --dest $@_tmp \
@@ -176,18 +131,41 @@ data/ACDC-2D-GEO/%/euclid_point_python: data/ACDC-2D-GEO/%/random
 	mv $@_tmp_1 $@_1
 	mv $@_tmp_2 $@_2
 	mv $@_tmp_3 $@_3
-data/ACDC-2D-GEO/%/intensity_point: data/ACDC-2D-GEO/%/random
-	$(info $(yellow)$(CC) $(CFLAGS) map_png.py --mode to_distmap --distmap_mode intensity $@ $(reset))
+data/ACDC-2D-GEO/%/eucl_point_fast: data/ACDC-2D-GEO/%/random
+	$(info $(yellow)$(CC) $(CFLAGS) map_png.py --mode to_distmap --distmap_mode euclidean $@ $(reset))
 	rm -rf $@_tmp $@_tmp_0 $@_tmp_1 $@_tmp_2 $@_tmp_3
 	mkdir -p $@_tmp $@_tmp_0 $@_tmp_1 $@_tmp_2 $@_tmp_3
 	$(CC) $(CFLAGS) map_png.py --mode to_distmap --src $< $(<D)/img --dest $@_tmp \
-		-K $(K) --distmap_mode intensity --norm_dist
+		-K $(K) --distmap_mode euclidean
 	mv $@_tmp $@
 	mv $@_tmp_0 $@_0
 	mv $@_tmp_1 $@_1
 	mv $@_tmp_2 $@_2
 	mv $@_tmp_3 $@_3
-#       rename -v '_tmp' '' $@_tmp*  # Doesn't work the same between distribs
+
+data/ACDC-2D-GEO/%/geo_point_fast: data/ACDC-2D-GEO/%/random
+	$(info $(yellow)$(CC) $(CFLAGS) map_png.py --mode to_distmap --distmap_mode geodesic $@ $(reset))
+	rm -rf $@_tmp $@_tmp_0 $@_tmp_1 $@_tmp_2 $@_tmp_3
+	mkdir -p $@_tmp $@_tmp_0 $@_tmp_1 $@_tmp_2 $@_tmp_3
+	$(CC) $(CFLAGS) map_png.py --mode to_distmap --src $< $(<D)/img --dest $@_tmp \
+		-K $(K) --distmap_mode geodesic --norm_dist
+	mv $@_tmp $@
+	mv $@_tmp_0 $@_0
+	mv $@_tmp_1 $@_1
+	mv $@_tmp_2 $@_2
+	mv $@_tmp_3 $@_3
+
+data/ACDC-2D-GEO/%/int_point_fast: data/ACDC-2D-GEO/%/random
+	$(info $(yellow)$(CC) $(CFLAGS) map_png.py --mode to_distmap --distmap_mode intensity $@ $(reset))
+	rm -rf $@_tmp $@_tmp_0 $@_tmp_1 $@_tmp_2 $@_tmp_3
+	mkdir -p $@_tmp $@_tmp_0 $@_tmp_1 $@_tmp_2 $@_tmp_3
+	$(CC) $(CFLAGS) map_png.py --mode to_distmap --src $< $(<D)/img --dest $@_tmp \
+		-K $(K) --distmap_mode intensity
+	mv $@_tmp $@
+	mv $@_tmp_0 $@_0
+	mv $@_tmp_1 $@_1
+	mv $@_tmp_2 $@_2
+	mv $@_tmp_3 $@_3
 
 
 # Trainings
@@ -196,65 +174,37 @@ $(RD)/ce: OPT = --losses="[('CrossEntropy', {'idc': [0, 1, 2, 3]}, 1)]"
 $(RD)/ce: data/ACDC-2D-GEO/train/gt data/ACDC-2D-GEO/val/gt
 $(RD)/ce: DATA = --folders="$(B_DATA)+[('gt', gt_transform, True)]"
 
-$(RD)/diceloss: OPT = --losses="[('DiceLoss', {'idc': [0, 1, 2, 3]}, 1)]"
-$(RD)/diceloss: data/ACDC-2D-GEO/train/gt data/ACDC-2D-GEO/val/gt
-$(RD)/diceloss: DATA = --folders="$(B_DATA)+[('gt', gt_transform, True)]"
-
-$(RD)/boundary_eucl: OPT = --losses="[('BoundaryLoss', {'idc': [0, 1, 2, 3]}, 1)]"
-$(RD)/boundary_eucl: data/ACDC-2D-GEO/train/gt data/ACDC-2D-GEO/val/gt
-$(RD)/boundary_eucl: DATA = --folders="$(B_DATA)+[('gt', dist_map_transform, False)]"
-
-$(RD)/boundary_geo: OPT = --losses="[('BoundaryLoss', {'idc': [0, 1, 2, 3]}, 1)]" --ignore_norm_dataloader
-$(RD)/boundary_geo: data/ACDC-2D-GEO/train/geodist data/ACDC-2D-GEO/val/geodist | npy geodist
-$(RD)/boundary_geo: DATA = --folders="[('img_npy', npy_transform, False), ('gt_npy', from_numpy_transform, True), ('geodist', from_numpy_transform, False)]"
-
-
 ## Weak ones
-### Single loss
-$(RD)/ce_point: OPT = --losses="[('CrossEntropy', {'idc': [1, 2, 3]}, 1)]"
-$(RD)/ce_point: data/ACDC-2D-GEO/train/random data/ACDC-2D-GEO/val/random
-$(RD)/ce_point: DATA = --folders="$(B_DATA)+[('random', gt_transform, True)]"
-
-$(RD)/diceloss_point: OPT = --losses="[('DiceLoss', {'idc': [1, 2, 3]}, 1)]"
-$(RD)/diceloss_point: data/ACDC-2D-GEO/train/random data/ACDC-2D-GEO/val/random
-$(RD)/diceloss_point: DATA = --folders="$(B_DATA)+[('random', gt_transform, True)]"
-
-$(RD)/boundary_eucl_point: OPT = --losses="[('BoundaryLoss', {'idc': [1, 2, 3]}, 1)]"
-$(RD)/boundary_eucl_point: data/ACDC-2D-GEO/train/random data/ACDC-2D-GEO/val/random
-$(RD)/boundary_eucl_point: DATA = --folders="$(B_DATA)+[('random', dist_map_transform, False)]"
-
-$(RD)/boundary_geo_point: OPT = --losses="[('BoundaryLoss', {'idc': [1, 2, 3]}, 1)]" --ignore_norm_dataloader
-$(RD)/boundary_geo_point: data/ACDC-2D-GEO/train/geodist_point data/ACDC-2D-GEO/val/geodist_point | npy geodist
-$(RD)/boundary_geo_point: DATA = --folders="[('img_npy', npy_transform, False), ('gt_npy', from_numpy_transform, True), ('geodist_point', from_numpy_transform, False)]"
-
-
 ### Combined
-$(RD)/ce_boundary_eucl_point_geodis: OPT = --losses="[('CrossEntropy', {'idc': [1, 2, 3]}, 1),\
-	('BoundaryLoss', {'idc': [1, 2, 3]}, 1)]" --ignore_norm_dataloader
-$(RD)/ce_boundary_eucl_point_geodis: data/ACDC-2D-GEO/train/random data/ACDC-2D-GEO/val/random data/ACDC-2D-GEO/train/euclid_point data/ACDC-2D-GEO/val/euclid_point | npy euclid
-$(RD)/ce_boundary_eucl_point_geodis: DATA = --folders="[('img_npy', npy_transform, False), ('gt_npy', from_numpy_transform, True), ('random_npy', gt_transform, True), ('euclid_point', from_numpy_transform, False)]"
-
-$(RD)/ce_boundary_eucl_point: OPT = --losses="[('CrossEntropy', {'idc': [1, 2, 3]}, 1),\
+#### Euclidean
+$(RD)/ce_bl_eucl_point_live: OPT = --losses="[('CrossEntropy', {'idc': [1, 2, 3]}, 1),\
 	('BoundaryLoss', {'idc': [1, 2, 3]}, 1)]"
-$(RD)/ce_boundary_eucl_point: data/ACDC-2D-GEO/train/random data/ACDC-2D-GEO/val/random
-$(RD)/ce_boundary_eucl_point: DATA = --folders="$(B_DATA)+[('random', gt_transform, True), ('random', dist_map_transform, False)]"
+$(RD)/ce_bl_eucl_point_live: data/ACDC-2D-GEO/train/random data/ACDC-2D-GEO/val/random
+$(RD)/ce_bl_eucl_point_live: DATA = --folders="$(B_DATA)+[('random', gt_transform, True), ('random', dist_map_transform, False)]"
 
-$(RD)/ce_boundary_geo_point_geodis: OPT = --losses="[('CrossEntropy', {'idc': [1, 2, 3]}, 1),\
+$(RD)/ce_bl_eucl_point_numpy: OPT = --losses="[('CrossEntropy', {'idc': [1, 2, 3]}, 1),\
 	('BoundaryLoss', {'idc': [1, 2, 3]}, 1)]" --ignore_norm_dataloader
-$(RD)/ce_boundary_geo_point_geodis: data/ACDC-2D-GEO/train/random_npy data/ACDC-2D-GEO/val/random_npy data/ACDC-2D-GEO/train/geodist_point data/ACDC-2D-GEO/val/geodist_point | npy geodist
-$(RD)/ce_boundary_geo_point_geodis: DATA = --folders="[('img_npy', npy_transform, False), ('gt_npy', from_numpy_transform, True), ('random_npy', gt_transform, True), ('geodist_point', from_numpy_transform, False)]"
+$(RD)/ce_bl_eucl_point_numpy: data/ACDC-2D-GEO/train/random data/ACDC-2D-GEO/val/random data/ACDC-2D-GEO/train/eucl_point_numpy data/ACDC-2D-GEO/val/eucl_point_numpy | npy euclid
+$(RD)/ce_bl_eucl_point_numpy: DATA = --folders="[('img_npy', npy_transform, False), ('gt_npy', from_numpy_transform, True), ('random_npy', gt_transform, True), ('eucl_point_numpy', from_numpy_transform, False)]"
 
-
-$(RD)/ce_boundary_geo_point: OPT = --losses="[('CrossEntropy', {'idc': [1, 2, 3]}, 1),\
+$(RD)/ce_bl_eucl_point_fast: OPT = --losses="[('CrossEntropy', {'idc': [1, 2, 3]}, 1),\
 	('BoundaryLoss', {'idc': [1, 2, 3]}, 1)]" --ignore_norm_dataloader
-$(RD)/ce_boundary_geo_point: data/ACDC-2D-GEO/train/random_npy data/ACDC-2D-GEO/val/random_npy data/ACDC-2D-GEO/train/geodist_point_python data/ACDC-2D-GEO/val/geodist_point_python | npy geodist
-$(RD)/ce_boundary_geo_point: DATA = --folders="[('img_npy', npy_transform, False), ('gt_npy', from_numpy_transform, True), ('random_npy', gt_transform, True), ('geodist_point_python', from_numpy_transform, False)]"
+$(RD)/ce_bl_eucl_point_fast: data/ACDC-2D-GEO/train/random data/ACDC-2D-GEO/val/random data/ACDC-2D-GEO/train/eucl_point_fast data/ACDC-2D-GEO/val/eucl_point_fast | npy euclid
+$(RD)/ce_bl_eucl_point_fast: DATA = --folders="[('img_npy', npy_transform, False), ('gt_npy', from_numpy_transform, True), ('random_npy', gt_transform, True), ('eucl_point_fast', from_numpy_transform, False)]"
 
 
-$(RD)/ce_boundary_int_point_geodis: OPT = --losses="[('CrossEntropy', {'idc': [1, 2, 3]}, 1),\
+#### Geodesic
+$(RD)/ce_bl_geo_point_fast: OPT = --losses="[('CrossEntropy', {'idc': [1, 2, 3]}, 1),\
 	('BoundaryLoss', {'idc': [1, 2, 3]}, 1)]" --ignore_norm_dataloader
-$(RD)/ce_boundary_int_point_geodis: data/ACDC-2D-GEO/train/random_npy data/ACDC-2D-GEO/val/random_npy data/ACDC-2D-GEO/train/intensity_point data/ACDC-2D-GEO/val/intensity_point | npy geodist
-$(RD)/ce_boundary_int_point_geodis: DATA = --folders="[('img_npy', npy_transform, False), ('gt_npy', from_numpy_transform, True), ('random_npy', gt_transform, True), ('intensity_point', from_numpy_transform, False)]"
+$(RD)/ce_bl_geo_point_fast: data/ACDC-2D-GEO/train/random_npy data/ACDC-2D-GEO/val/random_npy data/ACDC-2D-GEO/train/geo_point_fast data/ACDC-2D-GEO/val/geo_point_fast | npy geodist
+$(RD)/ce_bl_geo_point_fast: DATA = --folders="[('img_npy', npy_transform, False), ('gt_npy', from_numpy_transform, True), ('random_npy', gt_transform, True), ('geo_point_fast', from_numpy_transform, False)]"
+
+
+#### Intensity
+$(RD)/ce_bl_int_point_fast: OPT = --losses="[('CrossEntropy', {'idc': [1, 2, 3]}, 1),\
+	('BoundaryLoss', {'idc': [1, 2, 3]}, 1)]" --ignore_norm_dataloader
+$(RD)/ce_bl_int_point_fast: data/ACDC-2D-GEO/train/random_npy data/ACDC-2D-GEO/val/random_npy data/ACDC-2D-GEO/train/int_point_fast data/ACDC-2D-GEO/val/int_point_fast | npy geodist
+$(RD)/ce_bl_int_point_fast: DATA = --folders="[('img_npy', npy_transform, False), ('gt_npy', from_numpy_transform, True), ('random_npy', gt_transform, True), ('int_point_fast', from_numpy_transform, False)]"
 
 
 # Template
@@ -313,17 +263,15 @@ view: $(TRN) | weak
 		--display_names gt $(notdir $^) --no_contour -C $(K) --legend \
 		--class_names Background "Right ventricle" Myocardium "Left ventricle"
 
-view_euclid: data/ACDC-2D-GEO/train/gt data/ACDC-2D-GEO/train/random data/ACDC-2D-GEO/train/euclid_point_1 data/ACDC-2D-GEO/train/euclid_point_2 data/ACDC-2D-GEO/train/euclid_point_3
+view_euclid: data/ACDC-2D-GEO/train/gt data/ACDC-2D-GEO/train/random data/ACDC-2D-GEO/train/eucl_point_numpy_1 data/ACDC-2D-GEO/train/eucl_point_numpy_2 data/ACDC-2D-GEO/train/eucl_point_numpy_3 data/ACDC-2D-GEO/train/eucl_point_fast_1 data/ACDC-2D-GEO/train/eucl_point_fast_2 data/ACDC-2D-GEO/train/eucl_point_fast_3
 	$(info $(cyan)$(CC) viewer/viewer.py $^ $(reset))
 	$(CC) $(CFLAGS) viewer/viewer.py -n 3 --img_source data/ACDC-2D-GEO/train/img $^ \
-		--display_names $(notdir $^) --no_contour --cmap viridis --alpha 1.0 --legend -C $(K)
+		--display_names $(notdir $^) --no_contour --cmap viridis --alpha 1.0 --legend -C 256
 
-# view_labels: data/ACDC-2D-GEO/train/gt data/ACDC-2D-GEO/train/random
-# 	data/ACDC-2D-GEO/train/intensity_point_1 data/ACDC-2D-GEO/train/intensity_point_2 data/ACDC-2D-GEO/train/intensity_point_3
 view_labels: data/ACDC-2D-GEO/train/gt data/ACDC-2D-GEO/train/random \
-	data/ACDC-2D-GEO/train/geodist_point_1 data/ACDC-2D-GEO/train/geodist_point_2 data/ACDC-2D-GEO/train/geodist_point_3 \
-	data/ACDC-2D-GEO/train/geodist_point_python_1 data/ACDC-2D-GEO/train/geodist_point_python_2 data/ACDC-2D-GEO/train/geodist_point_python_3 \
-	data/ACDC-2D-GEO/train/euclid_point_1 data/ACDC-2D-GEO/train/euclid_point_2 data/ACDC-2D-GEO/train/euclid_point_3
+	data/ACDC-2D-GEO/train/eucl_point_fast_1 data/ACDC-2D-GEO/train/eucl_point_fast_2 data/ACDC-2D-GEO/train/eucl_point_fast_3 \
+	data/ACDC-2D-GEO/train/geo_point_fast_1 data/ACDC-2D-GEO/train/geo_point_fast_2 data/ACDC-2D-GEO/train/geo_point_fast_3 \
+	data/ACDC-2D-GEO/train/int_point_fast_1 data/ACDC-2D-GEO/train/int_point_fast_2 data/ACDC-2D-GEO/train/int_point_fast_3
 	$(info $(cyan)$(CC) viewer/viewer.py $^ $(reset))
 	$(CC) $(CFLAGS) viewer/viewer.py -n 3 --img_source data/ACDC-2D-GEO/train/img $^ \
 		--display_names $(notdir $^) --no_contour --cmap viridis --alpha 1.0 --legend -C 256
