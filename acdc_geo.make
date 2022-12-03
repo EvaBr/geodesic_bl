@@ -18,7 +18,7 @@ RD = results/acdc_geo
 
 # CFLAGS = -O
 # DEBUG = --debug
-EPC = 150
+EPC = 300
 BS = 8  # BS stands for Batch Size
 K = 4  # K for class
 
@@ -29,11 +29,11 @@ NET = ENet
 
 
 TRN = $(RD)/ce \
-	$(RD)/ce_bl_eucl_point_live \
-	$(RD)/ce_bl_eucl_point_numpy \
 	$(RD)/ce_bl_eucl_point_fast \
 	$(RD)/ce_bl_geo_point_fast \
 	$(RD)/ce_bl_int_point_fast
+# 	$(RD)/ce_bl_eucl_point_live \
+# 	$(RD)/ce_bl_eucl_point_numpy \
 
 
 GRAPH = $(RD)/val_dice.png $(RD)/tra_dice.png \
@@ -203,7 +203,7 @@ $(RD)/ce_bl_geo_point_fast: DATA = --folders="[('img_npy', npy_transform, False)
 #### Intensity
 $(RD)/ce_bl_int_point_fast: OPT = --losses="[('CrossEntropy', {'idc': [1, 2, 3]}, 1),\
 	('BoundaryLoss', {'idc': [1, 2, 3]}, 1)]" --ignore_norm_dataloader
-$(RD)/ce_bl_int_point_fast: data/ACDC-2D-GEO/train/random_npy data/ACDC-2D-GEO/val/random_npy data/ACDC-2D-GEO/train/int_point_fast data/ACDC-2D-GEO/val/int_point_fast | npy geodist
+$(RD)/ce_bl_int_point_fast: data/ACDC-2D-GEO/train/random_npy data/ACDC-2D-GEO/val/random_npy data/ACDC-2D-GEO/train/int_point_fast data/ACDC-2D-GEO/val/int_point_fast | npy intensity
 $(RD)/ce_bl_int_point_fast: DATA = --folders="[('img_npy', npy_transform, False), ('gt_npy', from_numpy_transform, True), ('random_npy', gt_transform, True), ('int_point_fast', from_numpy_transform, False)]"
 
 
