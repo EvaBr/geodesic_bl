@@ -3,7 +3,7 @@ PP = PYTHONPATH="$(PYTHONPATH):."
 SHELL = zsh
 
 
-.PHONY: all euclid geodist intensity train plot view view_euclid view_labels npy pack report weak
+.PHONY: all euclid geodist intensity train plot view view_euclid view_labels view_superpixels npy pack report weak
 
 red:=$(shell tput bold ; tput setaf 1)
 green:=$(shell tput bold ; tput setaf 2)
@@ -116,9 +116,6 @@ data/ACDC-2D-GEO/train/random_npy data/ACDC-2D-GEO/val/random_npy: MODE = to_npy
 
 euclid: data/ACDC-2D-GEO/train/eucl_point_numpy data/ACDC-2D-GEO/val/eucl_point_numpy \
 	data/ACDC-2D-GEO/train/eucl_point_fast data/ACDC-2D-GEO/val/eucl_point_fast
-geodist: data/ACDC-2D-GEO/train/geo_point_fast data/ACDC-2D-GEO/val/geo_point_fast
-intensity: data/ACDC-2D-GEO/train/int_point_fast data/ACDC-2D-GEO/val/int_point_fast
-
 
 data/ACDC-2D-GEO/%/eucl_point_numpy: data/ACDC-2D-GEO/%/random
 	$(info $(yellow)$(CC) $(CFLAGS) map_png.py --mode to_euclid $@ $(reset))
@@ -143,6 +140,9 @@ data/ACDC-2D-GEO/%/eucl_point_fast: data/ACDC-2D-GEO/%/random
 	mv $@_tmp_2 $@_2
 	mv $@_tmp_3 $@_3
 
+
+geodist: data/ACDC-2D-GEO/train/geo_point_fast data/ACDC-2D-GEO/val/geo_point_fast
+
 data/ACDC-2D-GEO/%/geo_point_fast: data/ACDC-2D-GEO/%/random
 	$(info $(yellow)$(CC) $(CFLAGS) map_png.py --mode to_distmap --distmap_mode geodesic $@ $(reset))
 	rm -rf $@_tmp $@_tmp_0 $@_tmp_1 $@_tmp_2 $@_tmp_3
@@ -155,6 +155,9 @@ data/ACDC-2D-GEO/%/geo_point_fast: data/ACDC-2D-GEO/%/random
 	mv $@_tmp_2 $@_2
 	mv $@_tmp_3 $@_3
 
+
+intensity: data/ACDC-2D-GEO/train/int_point_fast data/ACDC-2D-GEO/val/int_point_fast
+
 data/ACDC-2D-GEO/%/int_point_fast: data/ACDC-2D-GEO/%/random
 	$(info $(yellow)$(CC) $(CFLAGS) map_png.py --mode to_distmap --distmap_mode intensity $@ $(reset))
 	rm -rf $@_tmp $@_tmp_0 $@_tmp_1 $@_tmp_2 $@_tmp_3
@@ -166,6 +169,19 @@ data/ACDC-2D-GEO/%/int_point_fast: data/ACDC-2D-GEO/%/random
 	mv $@_tmp_1 $@_1
 	mv $@_tmp_2 $@_2
 	mv $@_tmp_3 $@_3
+
+
+
+superpixel: data/ACDC-2D-GEO/train/point_superpixel data/ACDC-2D-GEO/val/point_superpixel
+
+data/ACDC-2D-GEO/%/point_superpixel: data/ACDC-2D-GEO/%/random
+	$(info $(yellow)$(CC) $(CFLAGS) map_png.py --mode to_distmap --distmap_mode intensity $@ $(reset))
+	rm -rf $@_tmp $@_tmp_raw
+	mkdir -p $@_tmp $@_tmp_raw
+	$(CC) $(CFLAGS) map_png.py --mode to_superpixel --src $< $(<D)/img --dest $@_tmp \
+		-K $(K)
+	mv $@_tmp $@
+	mv $@_tmp_raw $@_raw
 
 
 # Trainings
@@ -275,6 +291,13 @@ view_labels: data/ACDC-2D-GEO/train/gt data/ACDC-2D-GEO/train/random \
 	$(info $(cyan)$(CC) viewer/viewer.py $^ $(reset))
 	$(CC) $(CFLAGS) viewer/viewer.py -n 3 --img_source data/ACDC-2D-GEO/train/img $^ \
 		--display_names $(notdir $^) --no_contour --cmap viridis --alpha 1.0 --legend -C 256
+
+
+view_superpixels: data/ACDC-2D-GEO/train/gt data/ACDC-2D-GEO/train/random data/ACDC-2D-GEO/train/point_superpixel data/ACDC-2D-GEO/train/point_superpixel_raw
+	$(info $(cyan)$(CC) viewer/viewer.py $^ $(reset))
+	$(CC) $(CFLAGS) viewer/viewer.py -n 3 --img_source data/ACDC-2D-GEO/train/img $^ \
+		--display_names $(notdir $^) -C 150
+# 		--display_names $(notdir $^) --no_contour --alpha 0.8 --legend -C 256
 
 report: $(TRN)
 	$(info $(yellow)$(CC) $(CFLAGS) report.py$(reset))

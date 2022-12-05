@@ -1,6 +1,7 @@
 #!/usr/bin/env python3.9
 
 import argparse
+import warnings
 from pathlib import Path
 from pprint import pprint
 from itertools import starmap
@@ -9,6 +10,7 @@ from typing import Callable, Optional
 import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
+from skimage.io import imsave
 from PIL import Image, ImageOps
 
 from utils import mmap_, starmmap_
@@ -71,6 +73,43 @@ def to_distmap(sources: tuple[Path, Path], dest: Path) -> None:
         for k in range(K):
                 png_dest: Path = root / f"{topfolder}_{k}" / f"{filename}.png"
                 plt.imsave(png_dest, res[k], cmap='viridis')
+
+
+def to_superpixel(sources: tuple[Path, Path], dest: Path) -> None:
+        from skimage.segmentation import slic
+
+        labels, img = sources
+        K: int = args.K
+
+        filename: str = dest.stem
+        topfolder: str = dest.parents[0].name
+        root: Path = dest.parents[1]
+
+        lab_arr: np.ndarray = np.asarray(Image.open(labels).convert(mode="L"))
+        img_arr: np.ndarray = np.asarray(Image.open(img).convert(mode='L')).astype(np.float32)
+        assert lab_arr.shape == img_arr.shape
+        assert lab_arr.dtype == np.uint8
+
+        lab_oh: np.ndarray = np_class2one_hot(lab_arr[None, ...], K)[0]
+        assert lab_oh.shape == (K, *img_arr.shape), lab_oh.shape
+
+        cluster: np.ndarray = slic(img_arr, n_segments=150, channel_axis=None,
+                                   compactness=0.1, convert2lab=False,
+                                   slic_zero=True)
+        assert cluster.shape == img_arr.shape
+
+        cluster_dest: Path = root / f"{topfolder}_raw" / f"{filename}.png"
+        imsave(cluster_dest, cluster.astype(np.uint8))
+
+        res: np.ndarray = np.zeros_like(lab_arr)
+        for v in np.unique(lab_arr):
+                for c in np.unique(cluster[lab_arr == v]):
+                        res[cluster == c] = v
+
+        png_dest: Path = root / f"{topfolder}" / f"{filename}.png"
+        with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", category=UserWarning)
+                imsave(png_dest, res.astype(np.uint8))
 
 
 def to_euclid(sources: tuple[Path, Path], dest: Path) -> None:
@@ -156,6 +195,7 @@ def resize(sources: tuple[Path, ...]) -> None:
 DICT_FN: dict[str, Callable] = {
     "to_distmap": to_distmap,
     "to_euclid": to_euclid,
+    "to_superpixel": to_superpixel,
     "to_npy": to_npy,
     "to_one_hot_npy": to_one_hot_npy,
     "center8pad": center8pad,
@@ -178,8 +218,8 @@ def main(args: argparse.Namespace):
                 dest_paths_noext = [Path(args.dest) / stem for stem in stems]
 
         if dest_paths_noext:
-                # starmmap_(DICT_FN[args.mode], tqdm(list(zip(sources_imgs, dest_paths_noext))))
-                list(starmap(DICT_FN[args.mode], tqdm(list(zip(sources_imgs, dest_paths_noext)))))
+                starmmap_(DICT_FN[args.mode], tqdm(list(zip(sources_imgs, dest_paths_noext))))
+                # list(starmap(DICT_FN[args.mode], tqdm(list(zip(sources_imgs, dest_paths_noext)))))
         else:
                 mmap_(DICT_FN[args.mode], tqdm(sources_imgs))
 
