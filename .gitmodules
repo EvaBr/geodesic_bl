@@ -1,3 +1,6 @@
 [submodule "viewer"]
 	path = viewer
 	url = git@github.com:HKervadec/segmentation_viewer.git
+[submodule "rloss"]
+	path = rloss
+	url = git@github.com:meng-tang/rloss.git
