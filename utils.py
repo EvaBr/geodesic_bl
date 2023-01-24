@@ -21,13 +21,34 @@ from medpy.metric.binary import hd
 from scipy.ndimage import distance_transform_edt as eucl_distance, convolve
 
 
-colors = ["c", "r", "g", "b", "m", 'y', 'k', 'chartreuse', 'coral', 'gold', 'lavender',
-          'silver', 'tan', 'teal', 'wheat', 'orchid', 'orange', 'tomato']
+colors = [
+    "c",
+    "r",
+    "g",
+    "b",
+    "m",
+    "y",
+    "k",
+    "chartreuse",
+    "coral",
+    "gold",
+    "lavender",
+    "silver",
+    "tan",
+    "teal",
+    "wheat",
+    "orchid",
+    "orange",
+    "tomato",
+]
 
 # functions redefinitions
-tqdm_ = partial(tqdm, dynamic_ncols=True,
-                leave=False,
-                bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [' '{rate_fmt}{postfix}]')
+tqdm_ = partial(
+    tqdm,
+    dynamic_ncols=True,
+    leave=False,
+    bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [" "{rate_fmt}{postfix}]",
+)
 
 A = TypeVar("A")
 B = TypeVar("B")
@@ -35,12 +56,12 @@ T = TypeVar("T", Tensor, np.ndarray)
 
 
 def str2bool(v):
-    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+    if v.lower() in ("yes", "true", "t", "y", "1"):
         return True
-    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+    elif v.lower() in ("no", "false", "f", "n", "0"):
         return False
     else:
-        raise argparse.ArgumentTypeError('Boolean value expected.')
+        raise argparse.ArgumentTypeError("Boolean value expected.")
 
 
 def map_(fn: Callable[[A], B], iter: Iterable[A]) -> List[B]:
@@ -48,11 +69,11 @@ def map_(fn: Callable[[A], B], iter: Iterable[A]) -> List[B]:
 
 
 def mmap_(fn: Callable[[A], B], iter: Iterable[A]) -> List[B]:
-    return Pool().map(fn, iter)
+    return Pool(4).map(fn, iter)  # set to 4, crashes otherwise on my comp
 
 
 def starmmap_(fn: Callable[[Tuple[A]], B], iter: Iterable[Tuple[A]]) -> List[B]:
-    return Pool().starmap(fn, iter)
+    return Pool(4).starmap(fn, iter)  # set to 4, crashes otherwise on my comp
 
 
 def uc_(fn: Callable) -> Callable:
@@ -195,14 +216,18 @@ def hausdorff(preds: Tensor, target: Tensor, spacing: Tensor = None) -> Tensor:
         for k in range(K):
             if not n_target[b, k].any():  # No object to predict
                 if n_pred[b, k].any():  # Predicted something nonetheless
-                    res[b, k] = sum((dd * d)**2 for (dd, d) in zip(n_spacing[b], img_shape)) ** 0.5
+                    res[b, k] = (
+                        sum((dd * d) ** 2 for (dd, d) in zip(n_spacing[b], img_shape)) ** 0.5
+                    )
                     continue
                 else:
                     res[b, k] = 0
                     continue
             if not n_pred[b, k].any():
                 if n_target[b, k].any():
-                    res[b, k] = sum((dd * d)**2 for (dd, d) in zip(n_spacing[b], img_shape)) ** 0.5
+                    res[b, k] = (
+                        sum((dd * d) ** 2 for (dd, d) in zip(n_spacing[b], img_shape)) ** 0.5
+                    )
                     continue
                 else:
                     res[b, k] = 0
@@ -234,7 +259,9 @@ def class2one_hot(seg: Tensor, K: int) -> Tensor:
     b, *img_shape = seg.shape  # type: Tuple[int, ...]
 
     device = seg.device
-    res = torch.zeros((b, K, *img_shape), dtype=torch.int32, device=device).scatter_(1, seg[:, None, ...], 1)
+    res = torch.zeros((b, K, *img_shape), dtype=torch.int32, device=device).scatter_(
+        1, seg[:, None, ...], 1
+    )
 
     assert res.shape == (b, K, *img_shape)
     assert one_hot(res)
@@ -243,19 +270,19 @@ def class2one_hot(seg: Tensor, K: int) -> Tensor:
 
 
 def np_class2one_hot(seg: np.ndarray, K: int) -> np.ndarray:
-        # print("Np enters")
-        """
-        Seems to be blocking here when using multi-processing.
-        Don't know why, so for now I'll re-implement the same function in numpy
-        which should be faster anyhow, but can introduce inconsistencies in the code
-        so need to be careful.
-        """
-        b, w, h = seg.shape
-        res = np.zeros((b, K, w, h), dtype=np.int64)
-        np.put_along_axis(res, seg[:, None, :, :], 1, axis=1)
+    # print("Np enters")
+    """
+    Seems to be blocking here when using multi-processing.
+    Don't know why, so for now I'll re-implement the same function in numpy
+    which should be faster anyhow, but can introduce inconsistencies in the code
+    so need to be careful.
+    """
+    b, w, h = seg.shape
+    res = np.zeros((b, K, w, h), dtype=np.int64)
+    np.put_along_axis(res, seg[:, None, :, :], 1, axis=1)
 
-        return res
-        # return class2one_hot(torch.from_numpy(seg.copy()).type(torch.int64), K).numpy()
+    return res
+    # return class2one_hot(torch.from_numpy(seg.copy()).type(torch.int64), K).numpy()
 
 
 def probs2one_hot(probs: Tensor) -> Tensor:
@@ -269,8 +296,9 @@ def probs2one_hot(probs: Tensor) -> Tensor:
     return res
 
 
-def one_hot2dist(seg: np.ndarray, resolution: Tuple[float, float, float] = None,
-                 dtype=None) -> np.ndarray:
+def one_hot2dist(
+    seg: np.ndarray, resolution: Tuple[float, float, float] = None, dtype=None
+) -> np.ndarray:
     assert one_hot(torch.tensor(seg), axis=0)
     K: int = len(seg)
 
@@ -280,16 +308,19 @@ def one_hot2dist(seg: np.ndarray, resolution: Tuple[float, float, float] = None,
 
         if posmask.any():
             negmask = ~posmask
-            res[k] = eucl_distance(negmask, sampling=resolution) * negmask \
+            res[k] = (
+                eucl_distance(negmask, sampling=resolution) * negmask
                 - (eucl_distance(posmask, sampling=resolution) - 1) * posmask
+            )
         # The idea is to leave blank the negative classes
         # since this is one-hot encoded, another class will supervise that pixel
 
     return res
 
 
-def one_hot2hd_dist(seg: np.ndarray, resolution: Tuple[float, float, float] = None,
-                    dtype=None) -> np.ndarray:
+def one_hot2hd_dist(
+    seg: np.ndarray, resolution: Tuple[float, float, float] = None, dtype=None
+) -> np.ndarray:
     """
     Used for https://arxiv.org/pdf/1904.10030.pdf,
     implementation from https://github.com/JunMa11/SegWithDistMap
@@ -323,10 +354,17 @@ def save_images(segs: Tensor, names: Iterable[str], root: str, mode: str, iter: 
             raise ValueError("How did you get here")
 
 
-def augment(*arrs: Union[np.ndarray, Image.Image], rotate_angle: float = 45,
-            flip: bool = True, mirror: bool = True,
-            rotate: bool = True, scale: bool = False) -> List[Image.Image]:
-    imgs: List[Image.Image] = map_(Image.fromarray, arrs) if isinstance(arrs[0], np.ndarray) else list(arrs)
+def augment(
+    *arrs: Union[np.ndarray, Image.Image],
+    rotate_angle: float = 45,
+    flip: bool = True,
+    mirror: bool = True,
+    rotate: bool = True,
+    scale: bool = False,
+) -> List[Image.Image]:
+    imgs: List[Image.Image] = (
+        map_(Image.fromarray, arrs) if isinstance(arrs[0], np.ndarray) else list(arrs)
+    )
 
     if flip and random() > 0.5:
         imgs = map_(ImageOps.flip, imgs)
@@ -352,10 +390,17 @@ def augment(*arrs: Union[np.ndarray, Image.Image], rotate_angle: float = 45,
     return imgs
 
 
-def augment_arr(*arrs_a: np.ndarray, rotate_angle: float = 45,
-                flip: bool = True, mirror: bool = True,
-                rotate: bool = True, scale: bool = False,
-                noise: bool = False, noise_loc: float = 0.5, noise_lambda: float = 0.1) -> List[np.ndarray]:
+def augment_arr(
+    *arrs_a: np.ndarray,
+    rotate_angle: float = 45,
+    flip: bool = True,
+    mirror: bool = True,
+    rotate: bool = True,
+    scale: bool = False,
+    noise: bool = False,
+    noise_loc: float = 0.5,
+    noise_lambda: float = 0.1,
+) -> List[np.ndarray]:
     arrs = list(arrs_a)  # manoucherie type check
 
     if flip and random() > 0.5:
@@ -378,7 +423,8 @@ def augment_arr(*arrs_a: np.ndarray, rotate_angle: float = 45,
 
 
 def get_center(shape: Tuple, *arrs: np.ndarray) -> List[np.ndarray]:
-    """ center cropping """
+    """center cropping"""
+
     def g_center(arr):
         if arr.shape == shape:
             return arr
@@ -388,7 +434,9 @@ def get_center(shape: Tuple, *arrs: np.ndarray) -> List[np.ndarray]:
         if 0 in offsets:
             return arr[[slice(0, s) for s in shape]]
 
-        res = arr[[slice(d, -d) for d in offsets]][[slice(0, s) for s in shape]]  # Deal with off-by-one errors
+        res = arr[[slice(d, -d) for d in offsets]][
+            [slice(0, s) for s in shape]
+        ]  # Deal with off-by-one errors
         assert res.shape == shape, (res.shape, shape, offsets)
 
         return res
@@ -410,114 +458,123 @@ def center_pad(arr: np.ndarray, target_shape: Tuple[int, ...]) -> np.ndarray:
 
 ##
 def pass_2D(img, distance, k_p, squared_dist, scaling_factor, alpha=1.0, backward=False):
-        W, H = img.shape
-        C, W_, H_ = distance.shape
-        assert W == W_ and H == H_
-        K = len(k_p['h'])
+    W, H = img.shape
+    C, W_, H_ = distance.shape
+    assert W == W_ and H == H_
+    K = len(k_p["h"])
 
-        precomp_diffs = np.zeros((W, H, K), dtype=np.float32)
+    precomp_diffs = np.zeros((W, H, K), dtype=np.float32)
 
-        for i, (kw, kh) in enumerate(zip(k_p['w'], k_p['h'])):
-                kernel = np.zeros((3, 3))
-                kernel[1, 1] = -1
-                kernel[1 + kw, 1 + kh] = 1
-                assert kernel.sum() == 0 and np.abs(kernel).sum() == 2
+    for i, (kw, kh) in enumerate(zip(k_p["w"], k_p["h"])):
+        kernel = np.zeros((3, 3))
+        kernel[1, 1] = -1
+        kernel[1 + kw, 1 + kh] = 1
+        assert kernel.sum() == 0 and np.abs(kernel).sum() == 2
 
-                # This part is commong for all classes
-                abs_diffs = convolve(img[...], kernel, origin=[kw, kh])
-                dist_pq = alpha * (abs_diffs**2 * scaling_factor + squared_dist[i])**.5
-                assert dist_pq.shape == (W, H)
+        # This part is commong for all classes
+        abs_diffs = convolve(img[...], kernel, origin=[kw, kh])
+        dist_pq = alpha * (abs_diffs**2 * scaling_factor + squared_dist[i]) ** 0.5
+        assert dist_pq.shape == (W, H)
 
-                precomp_diffs[:, :, i] = dist_pq
+        precomp_diffs[:, :, i] = dist_pq
 
-        # Coordinates also are common for all classes
-        hs, ws = np.mgrid[H - 1:-1:-1, W - 1:-1:-1] if backward else np.mgrid[:H, :W]
-        hs = hs.flatten()
-        ws = ws.flatten()
-        assert hs.shape == ws.shape == (W * H,)
+    # Coordinates also are common for all classes
+    hs, ws = np.mgrid[H - 1 : -1 : -1, W - 1 : -1 : -1] if backward else np.mgrid[:H, :W]
+    hs = hs.flatten()
+    ws = ws.flatten()
+    assert hs.shape == ws.shape == (W * H,)
 
-        # We tile them to match the size of the kernel, then we shift all coords by the kernel value
-        nws_ = np.tile(ws, (K, 1)).T + k_p['w']
-        assert nws_.shape == (W * H, K)
-        nhs_ = np.tile(hs, (K, 1)).T + k_p['h']
-        assert nhs_.shape == (W * H, K)
+    # We tile them to match the size of the kernel, then we shift all coords by the kernel value
+    nws_ = np.tile(ws, (K, 1)).T + k_p["w"]
+    assert nws_.shape == (W * H, K)
+    nhs_ = np.tile(hs, (K, 1)).T + k_p["h"]
+    assert nhs_.shape == (W * H, K)
 
-        # Pre-comp mask (common across C) of value coordinates
-        valid_ = (nws_ >= 0) & (nhs_ >= 0) & (nws_ < W) & (nhs_ < H)
-        assert valid_.shape == (W * H, K)
+    # Pre-comp mask (common across C) of value coordinates
+    valid_ = (nws_ >= 0) & (nhs_ >= 0) & (nws_ < W) & (nhs_ < H)
+    assert valid_.shape == (W * H, K)
 
-        for w, h, nws, nhs, valid in zip(ws, hs, nws_, nhs_, valid_):
-                p_dist = distance[:, w, h]
-                assert p_dist.shape == (C,), p_dist.shape
+    for w, h, nws, nhs, valid in zip(ws, hs, nws_, nhs_, valid_):
+        p_dist = distance[:, w, h]
+        assert p_dist.shape == (C,), p_dist.shape
 
-                if not valid.any():
-                        continue
-                if __debug__:
-                        K_ = valid.sum()
+        if not valid.any():
+            continue
+        if __debug__:
+            K_ = valid.sum()
 
-                diffs = precomp_diffs[w, h, valid]
-                assert valid.shape == (K,)
-                assert diffs.shape == (K_,), diffs.shape  # Some might not be valid
+        diffs = precomp_diffs[w, h, valid]
+        assert valid.shape == (K,)
+        assert diffs.shape == (K_,), diffs.shape  # Some might not be valid
 
-                qdists = distance[:, nws[valid], nhs[valid]]
-                assert qdists.shape == (C, K_), qdists.shape
+        qdists = distance[:, nws[valid], nhs[valid]]
+        assert qdists.shape == (C, K_), qdists.shape
 
-                proposed_dists = diffs + qdists  # Beware of the broadcasting
-                assert proposed_dists.shape == (C, K_)
+        proposed_dists = diffs + qdists  # Beware of the broadcasting
+        assert proposed_dists.shape == (C, K_)
 
-                distance[:, w, h] = np.minimum(p_dist, proposed_dists.min(axis=1))
+        distance[:, w, h] = np.minimum(p_dist, proposed_dists.min(axis=1))
 
-        return distance
+    return distance
 
 
 @lru_cache()
 def get_2d_kernel(backward=False):
-        if backward:
-                # kernel for the backward scan (paper Toivanen, table 4)
-                kh_b = np.array([0, 1, 1, 1])
-                kw_b = np.array([1, -1, 0, 1])
+    if backward:
+        # kernel for the backward scan (paper Toivanen, table 4)
+        kh_b = np.array([0, 1, 1, 1])
+        kw_b = np.array([1, -1, 0, 1])
 
-                k_p = {'h': kh_b, 'w': kw_b}
+        k_p = {"h": kh_b, "w": kw_b}
 
-                # squared Euclidean distance between point p to point q (point in kernel)
-                # for the pixels in the backward kernel
-                squared_dist = np.array([1.0, 2.0, 1.0, 2.0])
+        # squared Euclidean distance between point p to point q (point in kernel)
+        # for the pixels in the backward kernel
+        squared_dist = np.array([1.0, 2.0, 1.0, 2.0])
 
-        else:
-                # kernel for the forward scan (paper Toivanen, table 3)
-                kh_f = np.array([-1, -1, -1, 0])
-                kw_f = np.array([-1, 0, 1, -1])
+    else:
+        # kernel for the forward scan (paper Toivanen, table 3)
+        kh_f = np.array([-1, -1, -1, 0])
+        kw_f = np.array([-1, 0, 1, -1])
 
-                k_p = {'h': kh_f, 'w': kw_f}
+        k_p = {"h": kh_f, "w": kw_f}
 
-                # squared Euclidean distance between point p to point q (point in kernel)
-                # for the pixels in the forward kernel
-                squared_dist = np.array([2.0, 1.0, 2.0, 1.0])
+        # squared Euclidean distance between point p to point q (point in kernel)
+        # for the pixels in the forward kernel
+        squared_dist = np.array([2.0, 1.0, 2.0, 1.0])
 
-        return k_p, squared_dist
+    return k_p, squared_dist
 
 
-def dm_rasterscan(im: np.ndarray, seeds: np.ndarray, its: int = 2,
-                  scaling_factor: int = 1, alpha: float = 1.) -> np.ndarray:
-        W, H = im.shape
-        C, W_, H_ = seeds.shape
-        assert W == W_ and H == H_
+def dm_rasterscan(
+    im: np.ndarray, seeds: np.ndarray, its: int = 2, scaling_factor: int = 1, alpha: float = 1.0
+) -> np.ndarray:
+    W, H = im.shape
+    C, W_, H_ = seeds.shape
+    assert W == W_ and H == H_
 
-        img: np.ndarray = im.astype(np.float32).copy()
+    img: np.ndarray = im.astype(np.float32).copy()
 
-        # setting all initial distances at a high value except the seeds..
-        distance = 1.0e10 * np.ones(seeds.shape, dtype=np.float32)
-        distance[seeds == 1] = 0
+    # setting all initial distances at a high value except the seeds..
+    distance = 1.0e10 * np.ones(seeds.shape, dtype=np.float32)
+    distance[seeds == 1] = 0
 
-        for it in range(its):
-                # forward scan
-                k_f, squared_dist_f = get_2d_kernel()
-                distance = pass_2D(img, distance, k_f, squared_dist_f,
-                                   scaling_factor=scaling_factor, alpha=alpha)
+    for it in range(its):
+        # forward scan
+        k_f, squared_dist_f = get_2d_kernel()
+        distance = pass_2D(
+            img, distance, k_f, squared_dist_f, scaling_factor=scaling_factor, alpha=alpha
+        )
 
-                # backward scan
-                k_b, squared_dist_b = get_2d_kernel(backward=True)
-                distance = pass_2D(img, distance, k_b, squared_dist_b,
-                                   scaling_factor=scaling_factor, alpha=alpha, backward=True)
+        # backward scan
+        k_b, squared_dist_b = get_2d_kernel(backward=True)
+        distance = pass_2D(
+            img,
+            distance,
+            k_b,
+            squared_dist_b,
+            scaling_factor=scaling_factor,
+            alpha=alpha,
+            backward=True,
+        )
 
-        return distance
+    return distance
