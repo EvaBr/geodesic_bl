@@ -6,7 +6,7 @@ archives/
 
 examples*/
 readme.txt
-
+plots.make
 data/*
 !data/*.lineage
 
@@ -22,6 +22,10 @@ results
 plot_bounds/
 /*.png
 /**/RANDOM_DATA*
+CheckinOutputsPOEM.py
+minipaper*
+poem*
+finalEval*
 
 .DS_Store
 

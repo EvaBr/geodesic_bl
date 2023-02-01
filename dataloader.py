@@ -4,6 +4,7 @@ import io
 import re
 import pickle
 import random
+import torchvision.transforms.functional as TF
 import collections.abc as container_abcs
 from pathlib import Path
 from itertools import repeat
@@ -176,6 +177,10 @@ def get_loaders(args, data_folder: str,
                 list_folders_list = [list_folders_list]
         # print(folders_list)
 
+        augment = None
+        if args.augment:
+                augment = augmentation
+
         # Prepare the datasets and dataloaders
         print()
         train_loaders = []
@@ -193,6 +198,7 @@ def get_loaders(args, data_folder: str,
                                       K=n_class,
                                       in_memory=in_memory,
                                       dimensions=dimensions,
+                                      augment=augment,
                                       no_assert=args.no_assert_dataloader,
                                       ignore_norm=args.ignore_norm_dataloader)
                 data_loader = partial(DataLoader,
@@ -241,6 +247,101 @@ def get_loaders(args, data_folder: str,
         return train_loaders, [val_loader]
 
 
+def augmentation(*args):  # hardcoded for aug in 2D!
+        s = args[0].shape[-2:] #assume all tensors have same last two dims
+        angle = 0
+        if random.random() > 0.5:  # random rot
+                angle = random.choice([-90, -45, 45, 90])
+
+        i, j = 0, 0
+        h, w = s[0], s[1]
+        hmin, wmin = 150, 150  # how big the  random crops are at least
+        hmax, wmax = 200, 200  # how big the  random crops are at most
+        if random.random() > 0.25:  # random translate, crop, resize
+                h, w = torch.randint(hmin, hmax+1, size=(1,)).item(), torch.randint(wmin, wmax+1, size=(1,)).item()
+                i = torch.randint(0, s[0] - h, size=(1,)).item()
+                j = torch.randint(0, s[1] - w, size=(1,)).item()
+
+        #padding args:
+        biggest_side = max(s)
+        to_pad_x = int(biggest_side*1.5 - h)
+        to_pad_y = int(biggest_side*1.5 - w)
+        #padding for the left, top, right and bottom borders respectively
+        padx0 = to_pad_x//2
+        padx1 = to_pad_x - padx0
+        pady0 = to_pad_y//2
+        pady1 = to_pad_y - pady0
+        
+        #for img in args:
+        #        cropped = TF.crop(img, i, j, h, w)
+        #        padded = transforms.Pad((pady0, padx0, pady1, padx1), padding_mode="reflect")(cropped)
+        #        rotated = TF.rotate(padded, angle)
+        #        cropped2 = transforms.CenterCrop(s)(rotated)
+        #        print(f"{img.shape=}\n {cropped.shape=}\n {padded.shape=}\n {rotated.shape=}\n {cropped2.shape=}\n")
+                
+        
+        #F.pad(img, padding, fill, padding_mode)
+        imges = [TF.center_crop(TF.rotate(
+                        transforms.Pad((pady0, padx0, pady1, padx1), padding_mode="reflect")(TF.crop(img, i, j, h, w))
+                        , angle), s) for img in args]
+        #TODO: instead of padding, would it be better to resize? the question is then how to handle one-hot encoded gt -.-
+        return imges
+
+
+def get_test_loader(
+        args,
+        data_folder: str,
+        batch_size: int,
+        n_class: int,
+        debug: bool,
+        in_memory: bool,
+        dimensions: int,
+        use_spacing: bool = False,
+        ) -> DataLoader:
+
+        folders_list = eval(args.folders)  # just one level list. all assumed to reside in the same
+        # data_folder/args.test_folder!
+
+        # Prepare the datasets and dataloaders
+        print()
+        folders, trans, are_hots = zip(*folders_list)
+        print(f">> Test dataloader, loading from {data_folder}/{args.test_folder}/: {folders}")
+
+        gen_dataset = partial(
+                SliceDataset,
+                transforms=trans,
+                are_hots=are_hots,
+                debug=debug,
+                K=n_class,
+                in_memory=in_memory,
+                dimensions=dimensions,
+                no_assert=args.no_assert_dataloader,
+                ignore_norm=args.ignore_norm_dataloader,
+        )
+        data_loader = partial(
+                DataLoader,
+                num_workers=min(cpu_count(), batch_size + 5),
+                pin_memory=True,
+                collate_fn=custom_collate,
+        )
+
+        test_folders: List[Path] = [Path(data_folder, args.test_folder, f) for f in folders]
+        test_names: List[str] = map_(lambda p: str(p.name), test_folders[0].glob("*"))
+        t_spacing_p: Path = Path(data_folder, args.test_folder, "spacing.pkl")
+
+        test_spacing_dict: Dict[str, Tuple[float, ...]]
+        test_spacing_dict = pickle.load(open(t_spacing_p, "rb")) if use_spacing else None
+
+        test_set = gen_dataset(test_names, test_folders, spacing_dict=test_spacing_dict)
+        test_sampler = PatientSampler(test_set, args.grp_regex, shuffle=False) if args.group else None
+        test_batch_size = 1 if test_sampler else batch_size
+        # <- should probably just assume grouping, since we need 3d metrics when testing
+
+        test_loader = data_loader(test_set, batch_sampler=test_sampler, batch_size=test_batch_size)
+
+        return test_loader
+
+
 class SliceDataset(Dataset):
         def __init__(self, filenames: List[str], folders: List[Path], are_hots: List[bool],
                      transforms: List[Callable], debug=False, quiet=False,
@@ -260,7 +361,7 @@ class SliceDataset(Dataset):
                 self.spacing_dict: Optional[Dict[str, Tuple[float, ...]]] = spacing_dict
                 if self.spacing_dict:
                         assert len(self.spacing_dict) == len(self.filenames)
-                        print("> Spacing dictionnary loaded correctly")
+                        print("> Spacing dictionary loaded correctly")
 
                 self.augment: Optional[Callable] = augment
                 self.ignore_norm: bool = ignore_norm
@@ -359,7 +460,6 @@ class SliceDataset(Dataset):
 
                      #   for ttensor in final_tensors[1:]:  # Things should be one-hot or at least have the shape
                      #           assert ttensor.shape == (self.K, *img_shape), (ttensor.shape, self.K, *img_shape)
-
                         for ttensor, is_hot in zip(final_tensors, self.are_hots):  # All masks (ground truths) are class encoded
                                 if is_hot:
                                         assert one_hot(ttensor, axis=0), torch.einsum("k...->...", ttensor)

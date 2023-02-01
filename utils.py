@@ -216,18 +216,14 @@ def hausdorff(preds: Tensor, target: Tensor, spacing: Tensor = None) -> Tensor:
         for k in range(K):
             if not n_target[b, k].any():  # No object to predict
                 if n_pred[b, k].any():  # Predicted something nonetheless
-                    res[b, k] = (
-                        sum((dd * d) ** 2 for (dd, d) in zip(n_spacing[b], img_shape)) ** 0.5
-                    )
+                    res[b, k] = sum((dd * d) ** 2 for (dd, d) in zip(n_spacing[b], img_shape)) ** 0.5
                     continue
                 else:
                     res[b, k] = 0
                     continue
             if not n_pred[b, k].any():
                 if n_target[b, k].any():
-                    res[b, k] = (
-                        sum((dd * d) ** 2 for (dd, d) in zip(n_spacing[b], img_shape)) ** 0.5
-                    )
+                    res[b, k] = sum((dd * d) ** 2 for (dd, d) in zip(n_spacing[b], img_shape)) ** 0.5
                     continue
                 else:
                     res[b, k] = 0
@@ -259,9 +255,7 @@ def class2one_hot(seg: Tensor, K: int) -> Tensor:
     b, *img_shape = seg.shape  # type: Tuple[int, ...]
 
     device = seg.device
-    res = torch.zeros((b, K, *img_shape), dtype=torch.int32, device=device).scatter_(
-        1, seg[:, None, ...], 1
-    )
+    res = torch.zeros((b, K, *img_shape), dtype=torch.int32, device=device).scatter_(1, seg[:, None, ...], 1)
 
     assert res.shape == (b, K, *img_shape)
     assert one_hot(res)
@@ -296,9 +290,7 @@ def probs2one_hot(probs: Tensor) -> Tensor:
     return res
 
 
-def one_hot2dist(
-    seg: np.ndarray, resolution: Tuple[float, float, float] = None, dtype=None
-) -> np.ndarray:
+def one_hot2dist(seg: np.ndarray, resolution: Tuple[float, float, float] = None, dtype=None) -> np.ndarray:
     assert one_hot(torch.tensor(seg), axis=0)
     K: int = len(seg)
 
@@ -318,9 +310,7 @@ def one_hot2dist(
     return res
 
 
-def one_hot2hd_dist(
-    seg: np.ndarray, resolution: Tuple[float, float, float] = None, dtype=None
-) -> np.ndarray:
+def one_hot2hd_dist(seg: np.ndarray, resolution: Tuple[float, float, float] = None, dtype=None) -> np.ndarray:
     """
     Used for https://arxiv.org/pdf/1904.10030.pdf,
     implementation from https://github.com/JunMa11/SegWithDistMap
@@ -341,9 +331,14 @@ def one_hot2hd_dist(
 
 
 # Misc utils
-def save_images(segs: Tensor, names: Iterable[str], root: str, mode: str, iter: int) -> None:
+def save_images(segs: Tensor, names: Iterable[str], root: str, mode: str, iter: int = -1) -> None:
+    if iter == -1:  # testing or whatever, don't do iterXXX folders
+        rootFolder = Path(root, mode)
+    else:
+        rootFolder = Path(root, f"iter{iter:03d}", mode)
+
     for seg, name in zip(segs, names):
-        save_path = Path(root, f"iter{iter:03d}", mode, name).with_suffix(".png")
+        save_path = Path(rootFolder, name).with_suffix(".png")
         save_path.parent.mkdir(parents=True, exist_ok=True)
 
         if len(seg.shape) == 2:
@@ -362,9 +357,7 @@ def augment(
     rotate: bool = True,
     scale: bool = False,
 ) -> List[Image.Image]:
-    imgs: List[Image.Image] = (
-        map_(Image.fromarray, arrs) if isinstance(arrs[0], np.ndarray) else list(arrs)
-    )
+    imgs: List[Image.Image] = map_(Image.fromarray, arrs) if isinstance(arrs[0], np.ndarray) else list(arrs)
 
     if flip and random() > 0.5:
         imgs = map_(ImageOps.flip, imgs)
@@ -434,9 +427,7 @@ def get_center(shape: Tuple, *arrs: np.ndarray) -> List[np.ndarray]:
         if 0 in offsets:
             return arr[[slice(0, s) for s in shape]]
 
-        res = arr[[slice(d, -d) for d in offsets]][
-            [slice(0, s) for s in shape]
-        ]  # Deal with off-by-one errors
+        res = arr[[slice(d, -d) for d in offsets]][[slice(0, s) for s in shape]]  # Deal with off-by-one errors
         assert res.shape == shape, (res.shape, shape, offsets)
 
         return res
@@ -561,9 +552,7 @@ def dm_rasterscan(
     for it in range(its):
         # forward scan
         k_f, squared_dist_f = get_2d_kernel()
-        distance = pass_2D(
-            img, distance, k_f, squared_dist_f, scaling_factor=scaling_factor, alpha=alpha
-        )
+        distance = pass_2D(img, distance, k_f, squared_dist_f, scaling_factor=scaling_factor, alpha=alpha)
 
         # backward scan
         k_b, squared_dist_b = get_2d_kernel(backward=True)

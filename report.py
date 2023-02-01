@@ -27,7 +27,10 @@ def display_metric(args, metric: str, folders: list[str], axises: tuple[int], be
 
     for i, folder in enumerate(folders):
         file: Path = Path(folder, metric).with_suffix(".npy")
-        data: np.ndarray = np.load(file)[:, :, axises]  # Epoch, sample, classes
+        data: np.ndarray = np.load(file)
+        if data.ndim==2: #quickfix for being able to use it with test eval, where epoch dim is trivial
+            data = data[np.newaxis, ...]
+        data = data[:, :, axises]  # Epoch, sample, classes
         averages: np.ndarray = data.mean(axis=(1, 2))
         stds: np.ndarray = data.std(axis=(1, 2))
 

@@ -475,6 +475,7 @@ def get_args() -> argparse.Namespace:
                             but with different folders/bounds ; which will basically duplicate the evaluation.
                             """,
     )
+    parser.add_argument("--augment", action="store_true") #when True, hardcoded to using the Augmentation fnc in dtaaloaders.py
     args = parser.parse_args()
 
     # args = parser.parse_args(['--dataset', 'minipaper/data_synt/', '--batch_size', '16', '--in_memory', '--l_rate', '0.001', '--schedule', \

@@ -14,11 +14,11 @@ cyan:=$(shell tput bold ; tput setaf 6)
 reset:=$(shell tput sgr0)
 
 # RD stands for Result DIR -- useful way to report from extracted archive
-RD = results/acdc_geo
+RD = results/acdc_geo/augmented
 
 # CFLAGS = -O
 # DEBUG = --debug
-EPC = 300
+EPC = 100
 BS = 8  # BS stands for Batch Size
 K = 4  # K for class
 
@@ -67,7 +67,7 @@ all: pack
 train: $(TRN)
 plot: $(PLT)
 
-pack: $(PACK) report
+pack: $(PACK) report view
 $(PACK): $(PLT) $(TRN)
 	$(info $(red)tar cf $@$(reset))
 	mkdir -p $(@D)
@@ -246,7 +246,7 @@ $(RD)/%:
 	git rev-parse --short HEAD > $@_tmp/commit_hash
 	$(CC) $(CFLAGS) main.py --dataset=$(dir $(<D)) --batch_size=$(BS) --group --schedule \
 		--n_epoch=$(EPC) --workdir=$@_tmp --csv=metrics.csv --n_class=4 --metric_axis 1 2 3 \
-		--compute_3d_dice \
+		--compute_3d_dice --augment \
 		--grp_regex="$(G_RGX)" --network=$(NET) $(OPT) $(DATA) $(DEBUG)
 	mv $@_tmp $@
 
