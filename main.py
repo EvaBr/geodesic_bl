@@ -90,6 +90,7 @@ def do_epoch(
     compute_3d_dice: bool = False,
     temperature: float = 1,
     compute_on_pts: bool = False,
+    rloss: bool = False
 ) -> Tuple[Tensor, Tensor, Optional[Tensor]]:
     assert mode in ["train", "val", "dual"]
 
@@ -157,7 +158,10 @@ def do_epoch(
             assert len(loss_fns) == len(loss_weights) == len(labels)
             ziped = zip(loss_fns, labels, loss_weights)
             losses = [w * loss_fn(pred_probs, label) for loss_fn, label, w in ziped]
-            loss = reduce(add, losses)
+            if not rloss:
+                loss = reduce(add, losses)
+            else:
+                loss = losses[0].cpu() + losses[1]
             assert loss.shape == (), loss.shape
 
             # Backward
@@ -298,6 +302,7 @@ def run(args: argparse.Namespace) -> Dict[str, Tensor]:
             metric_axis=args.metric_axis,
             temperature=args.temperature,
             compute_on_pts=args.compute_on_pts,
+            rloss=args.rloss
         )
         with torch.no_grad():
             val_res = do_epoch(
@@ -314,6 +319,7 @@ def run(args: argparse.Namespace) -> Dict[str, Tensor]:
                 compute_3d_dice=args.compute_3d_dice,
                 temperature=args.temperature,
                 compute_on_pts=args.compute_on_pts,
+                rloss=args.rloss
             )
             val_loss, val_dice, val_dice_pts, val_3d_dsc = val_res
 
@@ -434,6 +440,7 @@ def get_args() -> argparse.Namespace:
     parser.add_argument("--use_sgd", action="store_true")
     parser.add_argument("--compute_3d_dice", action="store_true")
     parser.add_argument("--compute_on_pts", action="store_true")
+    parser.add_argument("--rloss", action="store_true")
     parser.add_argument("--save_train", action="store_true")
     parser.add_argument("--use_spacing", action="store_true")
     parser.add_argument("--no_assert_dataloader", action="store_true")
