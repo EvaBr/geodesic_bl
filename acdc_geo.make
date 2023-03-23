@@ -233,6 +233,12 @@ $(RD)/ce_bl_mbd_point: data/ACDC-2D-GEO/train/random_npy data/ACDC-2D-GEO/val/ra
 $(RD)/ce_bl_mbd_point: DATA = --folders="$(B_DATA)+[('random_npy', gt_transform, True), ('mbd_point', from_numpy_transform, False)]"
 
 
+#### rloss
+$(RD)/ce_rloss: OPT = --losses="[('CrossEntropy', {'idc': [1, 2, 3]}, 1),\
+	('DenseCRFLoss', {'weight': 2e-9, 'sigma_rgb': 15, 'sigma_xy': 100, 'scale_factor': 0.5}, 1)]" \
+	--ignore_norm_dataloader --rloss
+$(RD)/ce_rloss: data/ACDC-2D-GEO/train/random data/ACDC-2D-GEO/val/random | npy
+$(RD)/ce_rloss: DATA = --folders="[('img_npy', npy_transform, False), ('gt_npy', from_numpy_transform, True), ('random_npy', gt_transform, True), ('random_npy', npy_crf_transform, False)]"
 
 
 

@@ -88,6 +88,14 @@ def npy_transform(resolution: Tuple[float, ...], K: int) -> Callable[[D], Tensor
         ])
 
 
+def npy_crf_transform(resolution: Tuple[float, ...], K: int) -> Callable[[D], Tensor]:
+        return transforms.Compose([
+                lambda npy: np.array(npy),
+                lambda nd: np.repeat(nd[None, :, :], 3, axis=0),
+                lambda nd: torch.tensor(nd, dtype=torch.float32)
+        ])
+
+
 def raw_npy_transform(resolution: Tuple[float, ...], K: int) -> Callable[[D], Tensor]:
         return transforms.Compose([
                 lambda npy: np.array(npy),
@@ -383,6 +391,7 @@ class SliceDataset(Dataset):
                 if not self.quiet:
                         print(f">> Initializing {self.__class__.__name__} with {len(self.filenames)} images")
                         print(f"> {self.dimensions=}")
+                        print([tr.__name__ for tr in self.transforms])
                         if self.augment:
                                 print("> Will augment data online")
 
