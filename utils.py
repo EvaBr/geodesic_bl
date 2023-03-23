@@ -331,11 +331,11 @@ def one_hot2hd_dist(seg: np.ndarray, resolution: Tuple[float, float, float] = No
 
 
 # Misc utils
-def save_images(segs: Tensor, names: Iterable[str], root: str, mode: str, iter: int = -1) -> None:
-    if iter == -1:  # testing or whatever, don't do iterXXX folders
-        rootFolder = Path(root, mode)
-    else:
-        rootFolder = Path(root, f"iter{iter:03d}", mode)
+def save_images(segs: Tensor, names: Iterable[str], root: str, mode: str, iter: int) -> None:
+    #if iter == -1:  # testing or whatever, don't do iterXXX folders
+    #    rootFolder = Path(root, mode)
+    #else:
+    rootFolder = Path(root, f"iter{iter:03d}", mode)
 
     for seg, name in zip(segs, names):
         save_path = Path(rootFolder, name).with_suffix(".png")

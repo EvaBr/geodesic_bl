@@ -165,7 +165,13 @@ class ENet(nn.Module):
 
         # Initial
         self.conv0 = nn.Conv2d(in_dim, 15, kernel_size=3, stride=2, padding=1)
-        self.maxpool0 = nn.MaxPool2d(2, return_indices=True)
+        if in_dim>1:
+            self.maxpool0 = nn.Sequential(
+                nn.Conv2d(in_dim, 1, kernel_size=1),
+                nn.MaxPool2d(2, return_indices=True))
+        else: #only 1chan imges
+            self.maxpool0 = nn.MaxPool2d(2, return_indices=True)
+
 
         # First group
         self.bottleNeck1_0 = BottleNeckDownSampling(self.n_kernels, self.projecting_factor, self.n_kernels * 4)

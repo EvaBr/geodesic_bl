@@ -136,7 +136,7 @@ def main(args: argparse.Namespace):
 
     # Assume the cleaning up is done before calling the script
     assert src_path.exists()
-    assert not dest_path.exists()
+#    assert not dest_path.exists()
 
     # Get all the file names, avoid the temporal ones
     nii_paths: list[Path] = [p for p in src_path.rglob('*.nii.gz') if "_4d" not in str(p)]
@@ -145,7 +145,8 @@ def main(args: argparse.Namespace):
     # We sort now, but also id matching is checked while iterating later on
     img_nii_paths: list[Path] = sorted(p for p in nii_paths if "_gt" not in str(p))
     gt_nii_paths: list[Path] = sorted(p for p in nii_paths if "_gt" in str(p))
-    assert len(img_nii_paths) == len(gt_nii_paths) == 200  # Hardcode that value for sanity test
+    assert len(img_nii_paths) == len(gt_nii_paths) 
+    assert (len(gt_nii_paths) == 200) or (len(gt_nii_paths) == 100) # Hardcode that value for sanity test
     paths: list[Tuple[Path, Path]] = list(zip(img_nii_paths, gt_nii_paths))
 
     print(f"Found {len(img_nii_paths)} pairs in total")

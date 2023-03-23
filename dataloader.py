@@ -40,6 +40,12 @@ def png_transform(resolution: Tuple[float, ...], K: int) -> Callable[[D], Tensor
                 lambda nd: nd / 255,  # max <= 1
                 lambda nd: torch.tensor(nd, dtype=torch.float32)
         ])
+def png_transform_nonorm(resolution: Tuple[float, ...], K: int) -> Callable[[D], Tensor]:
+        return transforms.Compose([
+                lambda img: img.convert('L'),
+                lambda img: np.array(img)[np.newaxis, ...],
+                lambda nd: torch.tensor(nd, dtype=torch.float32)
+        ])
 
 def liver_dt_transform(resolution: Tuple[float, ...], K: int) -> Callable[[D], Tensor]:
         return transforms.Compose([
@@ -198,7 +204,6 @@ def get_loaders(args, data_folder: str,
                                       K=n_class,
                                       in_memory=in_memory,
                                       dimensions=dimensions,
-                                      augment=augment,
                                       no_assert=args.no_assert_dataloader,
                                       ignore_norm=args.ignore_norm_dataloader)
                 data_loader = partial(DataLoader,
@@ -213,6 +218,7 @@ def get_loaders(args, data_folder: str,
                 train_spacing_dict: Dict[str, Tuple[float, ...]] = pickle.load(open(t_spacing_p, 'rb')) if use_spacing else None
                 train_set = gen_dataset(train_names,
                                         train_folders,
+                                        augment=augment,
                                         spacing_dict=train_spacing_dict)
                 if args.group_train:
                         train_sampler = PatientSampler(train_set, args.grp_regex, shuffle=True)
@@ -389,10 +395,12 @@ class SliceDataset(Dataset):
         def check_files(self) -> bool:
                 for folder in self.folders:
                         if not Path(folder).exists():
+                                print(f"{folder} DOES NOT EXIST!")
                                 return False
 
                         for f_n in self.filenames:
                                 if not Path(folder, f_n).exists():
+                                        print(f"{folder}: {f_n} DOES NOT EXIST!")
                                         return False
 
                 return True

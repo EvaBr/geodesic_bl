@@ -3,6 +3,7 @@ minipaper/
 results/
 inference/
 archives/
+preprocess/moveBckg*
 
 examples*/
 readme.txt
@@ -26,6 +27,8 @@ CheckinOutputsPOEM.py
 minipaper*
 poem*
 finalEval*
+prepare3Dpoem*
+sandbox*
 
 .DS_Store
 

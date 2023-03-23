@@ -3,7 +3,7 @@ PP = PYTHONPATH="$(PYTHONPATH):."
 SHELL = zsh
 
 
-.PHONY: mbddist mbddistnorm200 all euclid geodist geodistF intensity train plot view view_euclid view_labels view_superpixels npy pack report weak
+.PHONY: mbddist all euclid geodist intensity train plot view view_euclid view_labels view_superpixels npy pack report weak
 
 red:=$(shell tput bold ; tput setaf 1)
 green:=$(shell tput bold ; tput setaf 2)
@@ -14,25 +14,27 @@ cyan:=$(shell tput bold ; tput setaf 6)
 reset:=$(shell tput sgr0)
 
 # RD stands for Result DIR -- useful way to report from extracted archive
-RD = results/acdc_geo/augmented
+RD = results/acdc_geo_bechm
 
 # CFLAGS = -O
 # DEBUG = --debug
-EPC = 100
+EPC = 6
 BS = 8  # BS stands for Batch Size
 K = 4  # K for class
 
 G_RGX = (patient\d+_\d+_\d+)_\d+
-B_DATA = [('img', png_transform, False), ('gt', gt_transform, True)]
+B_DATA = [('img_npy', npy_transform, False), ('gt_npy', from_numpy_transform, True)]
+#[('img', png_transform, False), ('gt', gt_transform, True)]
 NET = ENet
 # NET = Dummy
 
 
 TRN = $(RD)/ce \
+	$(RD)/ce_weak \
+	$(RD)/ce_bl_eucl_point_fast \
 	$(RD)/ce_bl_geo_point_fast \
 	$(RD)/ce_bl_int_point_fast \
-	$(RD)/ce_bl_mbd_point \
-	$(RD)/ce_bl_eucl_point_fast
+	$(RD)/ce_bl_mbd_point
 #	$(RD)/ce_bl_eucl_point_fast_norm200 \
 #	$(RD)/ce_bl_geo_point_fast_norm200 \
 #	$(RD)/ce_bl_mbd_point_norm200 \
@@ -62,7 +64,7 @@ HOSTNAME = $(shell hostname)
 PBASE = archives
 PACK = $(PBASE)/$(REPO)-$(DATE)-$(HASH)-$(HOSTNAME)-acdc_geo.tar.zst
 
-all: pack
+all: train plot #pack
 
 train: $(TRN)
 plot: $(PLT)
@@ -80,11 +82,13 @@ $(PACK): $(PLT) $(TRN)
 
 
 # Data generation
-data/ACDC-2D-GEO: OPT = --seed=0 --retains 10 --retains_test 25
+data/ACDC-2D-GEO: OPT1 = --seed=0 --retains 20 --retains_test 0
+data/ACDC-2D-GEO: OPT2 = --seed=0 --retains 0 --retains_test 50
 data/ACDC-2D-GEO: data/acdc
 	$(info $(yellow)$(CC) $(CFLAGS) preprocess/slice_acdc.py$(reset))
 	rm -rf $@_tmp $@
-	$(PP) $(CC) $(CFLAGS) preprocess/slice_acdc.py --source_dir="data/acdc/training" --dest_dir=$@_tmp $(OPT)
+	$(PP) $(CC) $(CFLAGS) preprocess/slice_acdc.py --source_dir="data/acdc/training" --dest_dir=$@_tmp $(OPT1)
+	$(PP) $(CC) $(CFLAGS) preprocess/slice_acdc.py --source_dir="data/acdc/testing" --dest_dir=$@_tmp $(OPT2)
 	mv $@_tmp $@
 
 data/acdc: data/acdc.lineage data/acdc.zip
@@ -92,20 +96,6 @@ data/acdc: data/acdc.lineage data/acdc.zip
 	rm -rf $@_tmp $@
 	unzip -q $(word 2, $^) -d $@_tmp
 	rm $@_tmp/training/*/*_4d.nii.gz  # space optimization
-	mv $@_tmp $@
-
-weaks = data/ACDC-2D-GEO/train/random data/ACDC-2D-GEO/val/random
-weak: $(weaks)
-
-data/ACDC-2D-GEO/train/img data/ACDC-2D-GEO/val/img: | data/ACDC-2D-GEO
-data/ACDC-2D-GEO/train/gt data/ACDC-2D-GEO/val/gt: | data/ACDC-2D-GEO
-
-data/ACDC-2D-GEO/train/random data/ACDC-2D-GEO/val/random: OPT = --seed=0 --width=4 --r=0 --strategy=random_strat
-
-$(weaks): data/ACDC-2D-GEO
-	$(info $(yellow)$(CC) $(CFLAGS) gen_weak.py $@ $(reset))
-	rm -rf $@_tmp
-	$(CC) $(CFLAGS) gen_weak.py -K $(K) --base_folder=$(@D) --GT_subfolder gt --save_subfolder=$(@F)_tmp --selected_class 1 2 3 --filling 1 2 3 $(OPT) --verbose
 	mv $@_tmp $@
 
 
@@ -199,38 +189,48 @@ data/ACDC-2D-GEO/%/point_superpixel: data/ACDC-2D-GEO/%/random
 
 # Trainings
 ## Full ones
+$(RD)/ce_weak: OPT = --losses="[('CrossEntropy', {'idc': [1, 2, 3]}, 1)]"
+$(RD)/ce_weak: data/ACDC-2D-GEO/train/gt data/ACDC-2D-GEO/val/gt #| npy 
+$(RD)/ce_weak: DATA = --folders="$(B_DATA)+[('random_npy', gt_transform, True)]" --ignore_norm_dataloader
+
 $(RD)/ce: OPT = --losses="[('CrossEntropy', {'idc': [0, 1, 2, 3]}, 1)]"
-$(RD)/ce: data/ACDC-2D-GEO/train/gt data/ACDC-2D-GEO/val/gt
-$(RD)/ce: DATA = --folders="$(B_DATA)+[('gt', gt_transform, True)]"
+$(RD)/ce: data/ACDC-2D-GEO/train/gt data/ACDC-2D-GEO/val/gt | npy 
+$(RD)/ce: DATA = --folders="$(B_DATA)+[('gt_npy', from_numpy_transform, True)]" --ignore_norm_dataloader
+
+
+$(RD)/ce_norm: OPT = --losses="[('CrossEntropy', {'idc': [0, 1, 2, 3]}, 1)]"
+$(RD)/ce_norm: data/ACDC-2D-GEO/train/gt data/ACDC-2D-GEO/val/gt
+$(RD)/ce_norm: DATA = --folders="[('img', png_transform, False), ('gt', gt_transform, True), ('gt', gt_transform, True)]"
+
 
 ## Weak ones
 ### Combined
 #### Euclidean
 $(RD)/ce_bl_eucl_point_fast: OPT = --losses="[('CrossEntropy', {'idc': [1, 2, 3]}, 1),\
 	('BoundaryLoss', {'idc': [1, 2, 3]}, 1)]" --ignore_norm_dataloader
-$(RD)/ce_bl_eucl_point_fast: data/ACDC-2D-GEO/train/random data/ACDC-2D-GEO/val/random data/ACDC-2D-GEO/train/eucl_point_fast data/ACDC-2D-GEO/val/eucl_point_fast | npy euclid
-$(RD)/ce_bl_eucl_point_fast: DATA = --folders="[('img_npy', npy_transform, False), ('gt_npy', from_numpy_transform, True), ('random_npy', gt_transform, True), ('eucl_point_fast', from_numpy_transform, False)]"
+$(RD)/ce_bl_eucl_point_fast: data/ACDC-2D-GEO/train/random data/ACDC-2D-GEO/val/random data/ACDC-2D-GEO/train/eucl_point_fast data/ACDC-2D-GEO/val/eucl_point_fast #| npy euclid
+$(RD)/ce_bl_eucl_point_fast: DATA = --folders="$(B_DATA)+[('random_npy', gt_transform, True), ('eucl_point_fast', from_numpy_transform, False)]"
 
 
 #### Geodesic
 $(RD)/ce_bl_geo_point_fast: OPT = --losses="[('CrossEntropy', {'idc': [1, 2, 3]}, 1),\
 	('BoundaryLoss', {'idc': [1, 2, 3]}, 1)]" --ignore_norm_dataloader
-$(RD)/ce_bl_geo_point_fast: data/ACDC-2D-GEO/train/random_npy data/ACDC-2D-GEO/val/random_npy data/ACDC-2D-GEO/train/geo_point_fast data/ACDC-2D-GEO/val/geo_point_fast | npy geodist
-$(RD)/ce_bl_geo_point_fast: DATA = --folders="[('img_npy', npy_transform, False), ('gt_npy', from_numpy_transform, True), ('random_npy', gt_transform, True), ('geo_point_fast', from_numpy_transform, False)]"
+$(RD)/ce_bl_geo_point_fast: data/ACDC-2D-GEO/train/random_npy data/ACDC-2D-GEO/val/random_npy data/ACDC-2D-GEO/train/geo_point_fast data/ACDC-2D-GEO/val/geo_point_fast #| npy geodist
+$(RD)/ce_bl_geo_point_fast: DATA = --folders="$(B_DATA)+[('random_npy', gt_transform, True), ('geo_point_fast', from_numpy_transform, False)]"
 
 
 #### Intensity
 $(RD)/ce_bl_int_point_fast: OPT = --losses="[('CrossEntropy', {'idc': [1, 2, 3]}, 1),\
 	('BoundaryLoss', {'idc': [1, 2, 3]}, 1)]" --ignore_norm_dataloader
-$(RD)/ce_bl_int_point_fast: data/ACDC-2D-GEO/train/random_npy data/ACDC-2D-GEO/val/random_npy data/ACDC-2D-GEO/train/int_point_fast data/ACDC-2D-GEO/val/int_point_fast | npy intensity
-$(RD)/ce_bl_int_point_fast: DATA = --folders="[('img_npy', npy_transform, False), ('gt_npy', from_numpy_transform, True), ('random_npy', gt_transform, True), ('int_point_fast', from_numpy_transform, False)]"
+$(RD)/ce_bl_int_point_fast: data/ACDC-2D-GEO/train/random_npy data/ACDC-2D-GEO/val/random_npy data/ACDC-2D-GEO/train/int_point_fast data/ACDC-2D-GEO/val/int_point_fast #| npy intensity
+$(RD)/ce_bl_int_point_fast: DATA = --folders="$(B_DATA)+[('random_npy', gt_transform, True), ('int_point_fast', from_numpy_transform, False)]"
 
 
 #### MBD
 $(RD)/ce_bl_mbd_point: OPT = --losses="[('CrossEntropy', {'idc': [1, 2, 3]}, 1),\
 	('BoundaryLoss', {'idc': [1, 2, 3]}, 1)]" --ignore_norm_dataloader
-$(RD)/ce_bl_mbd_point: data/ACDC-2D-GEO/train/random_npy data/ACDC-2D-GEO/val/random_npy data/ACDC-2D-GEO/train/mbd_point data/ACDC-2D-GEO/val/mbd_point | npy mbddist
-$(RD)/ce_bl_mbd_point: DATA = --folders="[('img_npy', npy_transform, False), ('gt_npy', from_numpy_transform, True), ('random_npy', gt_transform, True), ('mbd_point', from_numpy_transform, False)]"
+$(RD)/ce_bl_mbd_point: data/ACDC-2D-GEO/train/random_npy data/ACDC-2D-GEO/val/random_npy data/ACDC-2D-GEO/train/mbd_point data/ACDC-2D-GEO/val/mbd_point #| npy mbddist
+$(RD)/ce_bl_mbd_point: DATA = --folders="$(B_DATA)+[('random_npy', gt_transform, True), ('mbd_point', from_numpy_transform, False)]"
 
 
 
@@ -246,10 +246,11 @@ $(RD)/%:
 	git rev-parse --short HEAD > $@_tmp/commit_hash
 	$(CC) $(CFLAGS) main.py --dataset=$(dir $(<D)) --batch_size=$(BS) --group --schedule \
 		--n_epoch=$(EPC) --workdir=$@_tmp --csv=metrics.csv --n_class=4 --metric_axis 1 2 3 \
-		--compute_3d_dice --augment \
+		--compute_3d_dice \
 		--grp_regex="$(G_RGX)" --network=$(NET) $(OPT) $(DATA) $(DEBUG)
 	mv $@_tmp $@
 
+#--augment 
 
 # Plotting
 $(RD)/val_3d_dsc.png $(RD)/val_dice.png $(RD)/tra_dice.png: COLS = 1 2 3
@@ -281,6 +282,24 @@ $(RD)/%.png:
 	$(eval metric:=$(subst .png,.npy,$(metric)))
 	$(CC) $(CFLAGS) $< --filename $(metric) --folders $(filter-out $<,$^) --columns $(COLS) \
 		--savefig=$@ --headless --epc 199 $(OPT)
+
+
+
+# Metrics
+## Those need to be computed once the training is over, as we have to reconstruct the whole 3D volume
+metrics: $(TRN) \
+	$(addsuffix /val_3d_dsc.npy, $(TRN)) \
+	$(addsuffix /val_3d_hd95.npy, $(TRN))
+#	$(addsuffix /val_3d_hausdorff.npy, $(TRN)) \
+#	$(addsuffix /val_3d_hd95.npy, $(TRN))
+
+$(RD)/%/val_3d_dsc.npy $(RD)/%/val_3d_hausdorff.npy $(RD)/%/val_3d_hd95.npy: data/ACDC-2D-GEO/val/gt | $(RD)/%
+	$(info $(green)$(CC) $(CFLAGS) metrics_overtime.py $@$(reset))
+	$(CC) $(CFLAGS) metrics_overtime.py --basefolder $(@D) --metrics 3d_dsc 3d_hd95 \
+		--grp_regex "$(G_RGX)" \
+		--num_classes $(K) --n_epoch $(EPC) \
+		--gt_folder $^
+
 
 
 

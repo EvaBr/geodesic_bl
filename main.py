@@ -9,6 +9,7 @@ from shutil import copytree, rmtree
 from typing import Any, Callable, Optional, Tuple, cast, List, Dict
 
 import torch
+import time
 import numpy as np
 import pandas as pd
 import torch.nn.functional as F
@@ -284,6 +285,7 @@ def run(args: argparse.Namespace) -> Dict[str, Tensor]:
     print("\n>>> Starting the training")
     for i in range(n_epoch):
         # Do training and validation loops
+      #  start = time.time()
         tra_loss, tra_dice, tra_dice_pts, _ = do_epoch(
             "train",
             net,
@@ -299,6 +301,8 @@ def run(args: argparse.Namespace) -> Dict[str, Tensor]:
             temperature=args.temperature,
             compute_on_pts=args.compute_on_pts,
         )
+      #  end = time.time()
+      #  print(f"TOTAL TRAINING TIME: {end-start}")
         with torch.no_grad():
             val_res = do_epoch(
                 "val",
@@ -350,11 +354,11 @@ def run(args: argparse.Namespace) -> Dict[str, Tensor]:
 
         # Save model if better
         current_dice: Tensor = val_dice[:, args.metric_axis].mean()
-        current_3d_dsc: Tensor = metrics["val_3d_dsc"][i, :, args.metric_axis].mean()
         if current_dice > best_dice:
             best_epoch = i
             best_dice = current_dice
-            best_3d_dsc = current_3d_dsc
+            if args.compute_3d_dice:
+                best_3d_dsc = metrics["val_3d_dsc"][i, :, args.metric_axis].mean()
 
             with open(Path(savedir, "best_epoch.txt"), "w") as f:
                 f.write(str(i))
@@ -383,11 +387,11 @@ def run(args: argparse.Namespace) -> Dict[str, Tensor]:
                 print(f">> New learning Rate: {lr}")
 
         if i > 0 and not (i % 5):
-            maybe_3d = f", 3d_DSC: {best_3d_dsc:.3f}" if args.compute_3d_dice else ""  # TODO
+            maybe_3d = f", 3d_DSC: {best_3d_dsc:.3f}" if args.compute_3d_dice else ""  
             print(f">> Best results at epoch {best_epoch}: DSC: {best_dice:.3f}{maybe_3d}")
 
     # Because displaying the results at the end is actually convenient
-    maybe_3d = f", 3d_DSC: {best_3d_dsc:.3f}" if args.compute_3d_dice else ""  # TODO
+    maybe_3d = f", 3d_DSC: {best_3d_dsc:.3f}" if args.compute_3d_dice else "" 
     print(f">> Best results at epoch {best_epoch}: DSC: {best_dice:.3f}{maybe_3d}")
     for metric in metrics:
         # Do not care about training values, nor the loss (keep it simple)

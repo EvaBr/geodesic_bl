@@ -92,7 +92,7 @@ def do_forward_pass(
             with warnings.catch_warnings():
                 warnings.filterwarnings("ignore", category=UserWarning)
                 predicted_class: Tensor = probs2class(pred_probs)
-                save_images(predicted_class, filenames, savedir, "test", 0)
+                save_images(predicted_class, filenames, savedir, "test", -1)
 
         # Logging
         big_slice = slice(0, done_img + B)  # Value for current and previous batches
@@ -203,7 +203,6 @@ def get_args() -> argparse.Namespace:
 
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("--cpu", action="store_true")
-    parser.add_argument("--shift_crop", action="store_true")
     parser.add_argument("--in_memory", action="store_true")
     parser.add_argument("--use_spacing", action="store_true")
     parser.add_argument("--no_assert_dataloader", action="store_true")

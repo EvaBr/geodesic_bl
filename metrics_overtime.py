@@ -34,6 +34,7 @@ def get_args() -> argparse.Namespace:
     parser.add_argument("--debug", action="store_true", help="Dummy for compatibility")
     parser.add_argument("--cpu", action="store_true")
 
+    parser.add_argument("--mode", type=str, default="val") #for compatibility with test metric computations
     parser.add_argument("--n_epoch", type=int, default=-1)
     args = parser.parse_args()
 
@@ -57,6 +58,7 @@ def main() -> None:
     # Handle gracefully if not all folders are there (early stop)
     EPC: int = args.n_epoch if args.n_epoch >= 0 else len(iterations_paths)
     K: int = args.num_classes
+    iterations_paths = iterations_paths[:EPC]
 
     # Get the patient number, and image names, from the GT folder
     gt_path: Path = Path(args.gt_folder)
@@ -80,9 +82,9 @@ def main() -> None:
     # pprint(unique_patients)
 
     # First, quickly assert all folders have the same numbers of predited images
-    n_img_epoc: List[int] = [len(list((p / "val").glob("*.png"))) for p in iterations_paths]
+    n_img_epoc: List[int] = [len(list((p / args.mode).glob("*.png"))) for p in iterations_paths]
     assert len(set(n_img_epoc)) == 1
-    assert all(len(list((p / "val").glob("*.png"))) == n_img for p in iterations_paths)
+    assert all(len(list((p / args.mode).glob("*.png"))) == n_img for p in iterations_paths)
 
     metrics: Dict['str', Tensor] = {}
     if '3d_dsc' in args.metrics:
@@ -113,15 +115,15 @@ def main() -> None:
                           collate_fn=custom_collate)
 
     # Will replace live dataset.folders and call again load_images to update dataset.files
-    print(gt_path, gt_path, Path(iterations_paths[0], 'val'))
-    dataset: SliceDataset = gen_dataset(names, [gt_path, gt_path, Path(iterations_paths[0], 'val'), gt_path])
+    print(gt_path, gt_path, Path(iterations_paths[0], args.mode))
+    dataset: SliceDataset = gen_dataset(names, [gt_path, gt_path, Path(iterations_paths[0], args.mode), gt_path])
     sampler: PatientSampler = PatientSampler(dataset, args.grp_regex, shuffle=False)
     dataloader: DataLoader = data_loader(dataset, batch_sampler=sampler)
 
     current_path: Path
     for e, current_path in enumerate(iterations_paths):
         pool = Pool()
-        dataset.folders = [gt_path, gt_path, Path(current_path, 'val'), gt_path]
+        dataset.folders = [gt_path, gt_path, Path(current_path, args.mode), gt_path]
         dataset.files = SliceDataset.load_images(dataset.folders, dataset.filenames, False)
 
         print(f">>> Doing epoch {str(current_path)}")
@@ -207,7 +209,7 @@ def main() -> None:
     key: str
     el: Tensor
     for key, el in metrics.items():
-        np.save(Path(args.basefolder, f"val_{key}.npy"), el.cpu().numpy())
+        np.save(Path(args.basefolder, f"{args.mode}_{key}.npy"), el.cpu().numpy())
 
 
 def get_hd_thing(np_pred: np.ndarray, np_target: np.ndarray, fn, voxelspacing):

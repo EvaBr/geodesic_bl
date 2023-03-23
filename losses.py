@@ -27,13 +27,64 @@ class CrossEntropy():
 
         return loss
 
+class JointBLandCE():
+    def __init__(self, **kwargs):
+        self.idc: List[int] = kwargs["idc"]
+        print(f"Initialized {self.__class__.__name__} with {kwargs}")
+
+    def __call__(self, probs: Tensor, target: Tensor, dist_maps: Tensor) -> Tensor:
+        assert simplex(probs) and simplex(target)
+
+        log_p: Tensor = (probs[:, self.idc, ...] + 1e-10).log()
+        log_notp: Tensor = (1. - probs[:, self.idc, ...] + 1e-10).log()
+        mask: Tensor = cast(Tensor, target[:, self.idc, ...].type(torch.float32))
+        dc: Tensor = dist_maps[:, self.idc, ...].type(torch.float32)
+
+        loss = - einsum("bkwh,bkwh->", mask, log_p)
+        loss /= mask.sum() + 1e-10 #this is the CE part
+
+        
+
+        multipled = einsum("bkwh,bkwh->bkwh", probs, dc)
+        loss += multipled.mean() #this is the BL part
+
+
+        loss2 = - einsum("bkwh,bkwh->bkwh", 1.-mask, log_notp)
+        loss2 = einsum("bkwh,bkwh->", loss2, dc)/(mask.numel()-mask.sum() + 1e-10)
+
+        return loss + loss2
+         
+
+class NoClassCrossEntropy(): #to be used on conjunction with BL and CE
+    def __init__(self, **kwargs):
+        self.idc: List[int] = kwargs["idc"]
+        print(f"Initialized {self.__class__.__name__} with {kwargs}")
+
+    def __call__(self, probs: Tensor, dist_maps: Tensor) -> Tensor:
+        assert simplex(probs) 
+        assert not one_hot(dist_maps)
+
+        log_notp: Tensor = (1. - probs[:, self.idc, ...] + 1e-10).log()
+        dc: Tensor = cast(Tensor, dist_maps[:, self.idc, ...].type(torch.float32))
+        mask: Tensor = torch.count_nonzero(torch.greater(dc, 0)).float() #, dim = 1)
+        #here dc would actually need to be dc[idc] X (1-gt[idc]), that's why we calc mask 
+
+
+        loss = - einsum("bkwh,bkwh->", dc, log_notp)
+        loss /= (dc.numel()-mask + 1e-10) #could use just numel here, since mask will be small when training with points
+
+        return loss
+        
+
+
 class WeightedCrossEntropy():
     def __init__(self, **kwargs):
-        idc = kwargs["idc"] #now these are weights that we apply. 
-        self.idc: List[int] = [i for i,v in enumerate(idc) if v>0]
-        #If a class should be ignored, simply set weight=0 for that class.
-        device = kwargs["device"]
-        self.weights = torch.tensor([i for i in idc if i>0]).float().to(device)
+        self.idc = kwargs["idc"] 
+        weights = kwargs["weights"] #now these are weights that we apply. Should be one for each idc!
+        assert len(self.idc)==len(weights), print("Weights should match the provided indices!")
+        device = kwargs["device"] #does not need to be specified manually, is given internally during loss setup
+        self.weights = torch.tensor(weights).float().to(device)
+        print(f"Initialized {self.__class__.__name__} with {kwargs}")
 
 
     def __call__(self, probs: Tensor, target: Tensor) -> Tensor:
