@@ -289,7 +289,7 @@ def run(args: argparse.Namespace) -> Dict[str, Tensor]:
     print("\n>>> Starting the training")
     for i in range(n_epoch):
         # Do training and validation loops
-      #  start = time.time()
+        #start = time.time()
         tra_loss, tra_dice, tra_dice_pts, _ = do_epoch(
             "train",
             net,
@@ -306,8 +306,8 @@ def run(args: argparse.Namespace) -> Dict[str, Tensor]:
             compute_on_pts=args.compute_on_pts,
             rloss=args.rloss
         )
-      #  end = time.time()
-      #  print(f"TOTAL TRAINING TIME: {end-start}")
+        #end = time.time()
+        #print(f"TOTAL TRAINING TIME: {end-start}")
         with torch.no_grad():
             val_res = do_epoch(
                 "val",

@@ -1,9 +1,10 @@
 #%%
-#joining metrics over runs
 from pathlib import Path
 import pandas as pd
 import numpy as np
-
+import matplotlib.pyplot as plt
+from PIL import Image
+import seaborn as sns
 import random 
 
 
@@ -13,37 +14,60 @@ def epread(fname):
     f.close()
     return int(ep)
 
-rootFolder = "results/acdc_geo_final_partialdata"
+
+def nml(mp):
+    mpnew = mp-mp.min()
+    mpnew = mpnew/mpnew.max()
+    return mpnew*255
+
+
+
+
+#%%
+######  joining metrics over runs, to compute stats
+
+###  ACDC  ###
+#rootFolder = "results/acdc_geo_final_partialdata"
+#numclass = 4 #including bckg
+
+###  POEM  ###
+rootFolder = "results/poem_last_2D"
+numclass = 7 #including bckg
+
+
 reps = 5
-numclass = 4 #including bckg
 
 
-#folders = [sorted(Path(rootFolder, f"rep{i}").glob("**")) for i in range(1, reps+1)]
+np.set_printoptions(precision=3, suppress=True)
 folders = [sorted([child for child in Path(rootFolder, f"rep{i}").iterdir() if child.is_dir()]) for i in range(1, reps+1)]
 assert len(set([len(i) for i in folders])) == 1, folders
 
 count=0
-debug=100
+debug=10000 #set to 5 or small number if debugging
 for allreps in zip(*folders):
     if count>debug: 
         break
     count+=1
-    #print(allreps)
+
     assert len(set(a.name for a in allreps))==1, allreps
     assert len(allreps)==reps, (len(allreps), reps)
     name = allreps[0].name
-    print("SUMMARIZING ", name)
+  #  print("SUMMARIZING ", name)
 
     best_eps = [epread(Path(onerep, 'best_epoch.txt')) for onerep in allreps]
-    print(f"BEST EPOCH\nmin {min(best_eps)}, avg {sum(best_eps)/reps}, max {max(best_eps)}")
-    print()
+  #  print(f"BEST EPOCH\nmin {min(best_eps)}, avg {sum(best_eps)/reps}, max {max(best_eps)}")
+  #  print()
 
-    for metric in ['test_3d_dsc.npy', 'test_3d_hd95.npy']: #, 'test_dice.npy']:
+    #print(name)
+    sezki = {'dsc': None, 'hd95': None}
+    for metric in ['test_3d_dsc.npy', 'test_3d_hd95.npy', 'test_dice.npy']:
+        whichone = metric.split("_")[-1]
+        whichone = whichone.split(".")[0]
         mets = np.stack([np.load(Path(onerep, metric)).squeeze() for onerep in allreps])
         assert mets.shape[-1]==numclass
 
-        MeanOverSubsPerOrgan = mets.mean(axis=1) #shape reps x 50 x 4 -> reps x 4
-        MeanOverSubsAll = mets.mean(axis=(1,2)) #MeanOverSubsPerOrgan.mean(axis=-1) #shape reps x 1
+        MeanOverSubsPerOrgan = mets.mean(axis=1) #shape reps x nrSubjects x nrOrgans -> reps x nrOrgans
+        MeanOverSubsAll = mets.mean(axis=(1,2)) #shape reps x 1
     #       MeanOverSubsForgr = MeanOverSubsPerOrgan[:,1:].mean(axis=-1) #shape reps x 1, only foreground classes
 
         ExperimentMean = mets.mean() #avg dice
@@ -55,36 +79,26 @@ for allreps in zip(*folders):
         ExperimentMeanPerOrgan = MeanOverSubsPerOrgan.mean(axis=0) #avg dice per class
         ExperimentStdPerOrgan = MeanOverSubsPerOrgan.std(axis=0)
 
-        print(metric)
-       # print(mets.mean(), mets.mean(axis=-1).std())
-        print("PER ORGAN")
-        print(ExperimentMeanPerOrgan, ExperimentStdPerOrgan)
-        print("OVERALL")
-        print(ExperimentMean, ExperimentStd)
-        print("FOR PAPER:")
-        print(ExperimentMeanPerOrgan[1:],ExperimentMean)
-        print()
-        print()
-
-
+      #  print(metric)
+      #  print("PER ORGAN")
+      #  print(ExperimentMeanPerOrgan, ExperimentStdPerOrgan)
+      #  print("OVERALL")
+      #  print(ExperimentMean, ExperimentStd)
+      #  print("FOR PAPER:")
+      #  print( " & ".join([f"${a:.03f} (\pm{b:.03f})$" for a,b in zip(list(ExperimentMeanPerOrgan[1:])+[ExperimentMean], list(ExperimentStdPerOrgan[1:])+[ExperimentStd])]) )
+       # print( whichone.upper()+ " " +" & ".join([f"${a:.03f} $" for a in list(ExperimentMeanPerOrgan[1:])+[ExperimentMean]]) + "\\")
+     #   print()
+      #  print()
+        sezki[whichone] = list(ExperimentMeanPerOrgan[1:])+[ExperimentMean]
+    #now jon them
+    print(name + " " + "&".join([f" $\\uparrow{a:.03f}\\downarrow{b:.03f}$ " for a,b in zip(sezki['dsc'], sezki['hd95'])]))
 
 
 
 
 
 # %%
-#plot distance maps
-import matplotlib.pyplot as plt
-from PIL import Image
-from pathlib import Path
-import numpy as np
-#%%
-
-def nml(mp):
-    mpnew = mp-mp.min()
-    mpnew = mpnew/mpnew.max()
-    return mpnew*255
-
+#######  plot distance maps
 
 p = 'data/ACDC-2D-GEO_fulldata/val'
 subject = 'patient012_01_0_00'
@@ -93,32 +107,10 @@ img = np.asarray(Image.open(p+'/img/'+subject+'.png')).copy()
 #img = nml(img)
 gt = np.asarray(Image.open(p+'/random/'+subject+'.png')).copy()
 
-img1, img2, img3 = img.copy(), img.copy(), img.copy()
-img1[gt==1] = 0
-img2[gt==2] = 0
-img3[gt==3] = 0
 
-gt1 = np.stack([img1, img1+(gt==1)*255, img1], axis=-1)
-gt2 = np.stack([img2, img2+(gt==2)*255, img2], axis=-1)
-gt3 = np.stack([img3, img3+(gt==3)*255, img3], axis=-1)
 
-plt.figure(figsize=(10,10))
-#plt.subplot(3,1,1)
-plt.imshow(gt1)
-plt.axis('off')
-plt.figure(figsize=(10,10))
-#plt.subplot(3,1,2)
-plt.imshow(gt2)
-plt.axis('off')
-plt.figure(figsize=(10,10))
-#plt.subplot(3,1,3)
-plt.imshow(gt3)
-plt.axis('off')
-
-#%%
 mbd = np.load(p+'/mbd_point/'+subject+'.npy')
 #mbd = nml(mbd)
-
 mbd1 = mbd[1] #Image.open(p+'/mbd_point_1/'+subject+'.png')
 mbd2 = mbd[2] #Image.open(p+'/mbd_point_2/'+subject+'.png')
 mbd3 = mbd[3] #Image.open(p+'/mbd_point_3/'+subject+'.png')
@@ -133,7 +125,7 @@ plt.figure(figsize=(10,10))
 plt.imshow(mbd3)
 plt.axis('off')
 
-#%%
+
 geo = np.load(p+'/geo_point_fast/'+subject+'.npy')
 geo = nml(geo)
 geo1 = geo[1] #Image.open(p+'/geo_point_fast_1/'+subject+'.png')
@@ -150,7 +142,7 @@ plt.figure(figsize=(10,10))
 plt.imshow(geo3)
 plt.axis('off')
 
-#%%
+
 inte = np.load(p+'/int_point_fast/'+subject+'.npy')
 #inte=nml(inte)
 int1 = inte[1] #Image.open(p+'/int_point_fast_1/'+subject+'.png')
@@ -166,8 +158,6 @@ plt.figure(figsize=(10,10))
 plt.imshow(int3)
 plt.axis('off')
 
-
-#%%
 
 euc = np.load(p+'/eucl_point_fast/'+subject+'.npy')
 #euc = nml(euc)
@@ -186,10 +176,7 @@ plt.axis('off')
 
 
 # %%
-#plots of a few example predictions
-# 
-# 
-
+##############    plots of a few example predictions
 
 vsi = list(Path('data/ACDC-2D-GEO_fulldata/test/img').glob('*.png'))
 subjects = random.choices(vsi, k=10)
@@ -227,7 +214,7 @@ for subj in subjects:
         plt.imsave(f"{folderName}_{ss}.png", imggt.astype(np.uint8))
         print(folderName)
 
-#%%
+#now save also squares of class colours
 enke = np.ones(gt.shape)
 cl1 = np.stack([enke*255, enke*178, enke*102],axis=-1)
 cl2 = np.stack([enke*153, enke*204, enke*255],axis=-1)
@@ -238,35 +225,24 @@ plt.imsave(f"class3.png", cl3.astype(np.uint8))
 
 
 # %%
-#making of a boxplot
-import seaborn as sns
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-
+###############    making of a boxplot
 
 sns.set(rc={'text.usetex' : True})
-
-
-#font_scale=1.5, 
+#plt.rcParams['text.usetex'] = True
+ 
 rep=1
 n_class = 4
-N = 50 #for poem: 10?
-metr =  'hd95' #'dsc' #
-folders2 = { 'ce': r"$\mathcal{L}_{\text{CE}}$, full annotation", 
-           # 'ce_weak': 'pCE', #"$\\mathcal L_{\\widetilde{\\text{CE}}}$", 
-            'ce_bl_eucl_point_fast': r"$\mathcal{L}_{\widetilde{\text{CE}}} + \mathcal{L}_B^{euc}$",
-            'ce_bl_geo_point_fast': r"$\mathcal{L}_{\widetilde{\text{CE}}} + \mathcal{L}_B^{geo}$", 
-            'ce_bl_int_point_fast': r"$\mathcal{L}_{\widetilde{\text{CE}}} + \mathcal{L}_B^{int}$", 
-            'ce_bl_mbd_point': r"$\mathcal{L}_{\widetilde{\text{CE}}} + \mathcal{L}_B^{mbd}$"
+N = 50 #for poem: 10
+metr =  'hd95' #'dsc' #'dice'
+folders = { 'ce': r'$\mathcal{L}_{\text{CE}}$, full annotation', 
+            'ce_weak': r'$\mathcal L_{\widetilde{\text{CE}}}$', 
+            'ce_bl_eucl_point_fast': r'$\mathcal{L}_{\widetilde{\text{CE}}} + \mathcal{L}_B^{euc}$',
+            'ce_bl_geo_point_fast': r'$\mathcal{L}_{\widetilde{\text{CE}}} + \mathcal{L}_B^{geo}$', 
+            'ce_bl_int_point_fast': r'$\mathcal{L}_{\widetilde{\text{CE}}} + \mathcal{L}_B^{int}$', 
+            'ce_bl_mbd_point': r'$\mathcal{L}_{\widetilde{\text{CE}}} + \mathcal{L}_B^{mbd}$',
+            'ce_rloss': r'$\mathcal{L}_{\widetilde{\text{CE}}} + $CRF-loss'
             }
-folders = { 'ce': 'CE', #"$\\mathcal L_{\\text{CE}}$, full annotation", 
-            'ce_weak': 'pCE', #"$\\mathcal L_{\\widetilde{\\text{CE}}}$", 
-            'ce_bl_eucl_point_fast': 'pCE + EUC', #$\\mathcal L_{\\widetilde{\\text{CE}}} + \\mathcal L_B^{euc}$",
-            'ce_bl_geo_point_fast': 'pCE + GEO', #"$\\mathcal L_{\\widetilde{\\text{CE}}} + \\mathcal L_B^{geo}$", 
-            'ce_bl_int_point_fast': 'pCE + INT', #"$\\mathcal L_{\\widetilde{\\text{CE}}} + \\mathcal L_B^{int}$", 
-            'ce_bl_mbd_point': 'pCE + MBD' #"$\\mathcal L_{\\widetilde{\\text{CE}}} + \\mathcal L_B^{mbd}$"
-            }
+
 
 #%%
 C = np.concatenate(
@@ -282,8 +258,8 @@ plotData = pd.DataFrame({'Mean 3D '+metr.upper():C.mean(axis=1), 'Training setti
 
 plt.rcParams['text.usetex'] = True
 vpl = sns.boxplot(data=plotData, x="Training setting", y='Mean 3D '+metr.upper())
-#vpl.get_figure().savefig(f"ACDC{metr}.pdf", dpi=500)
-
+vpl.get_figure().savefig(f"ACDC{metr}.pdf", dpi=500)
+plt.close(vpl.figure)
 
 #%%
 metr = 'dsc' #
@@ -307,7 +283,7 @@ for foldr in folders:
 # %%
 
 #folders = {i:j for i,j in folders.items() if i!="ce_weak"}
-metr = 'dsc'
+metr = 'hd95'
 Nf = len(folders)
 C = np.concatenate([np.load(f'results/acdc_geo_final_partialdata/rep{rep}/{foldr}/test_3d_{metr}.npy').squeeze() for foldr in folders])
 SS = pd.DataFrame(C[:, 1:])
@@ -322,7 +298,7 @@ skupaj.rename(columns={0:'3D '+metr.upper()}, inplace=True)
 
 
 vpl = sns.boxplot(data=skupaj, x="Class", y='3D '+metr.upper(), hue="Training setting")
-plt.legend(bbox_to_anchor=(0.05, 1.15), loc='upper left', borderaxespad=0, ncol=3)
+plt.legend(bbox_to_anchor=(0.02, 1.2), loc='upper left', borderaxespad=0, ncol=3)
 vpl.get_figure().savefig(f"ACDC{metr}_all.png", bbox_inches="tight", dpi=500)
 plt.close(vpl.figure)
 

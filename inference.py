@@ -8,7 +8,7 @@ import torch.nn.functional as F
 from torch import Tensor
 from torch.utils.data import DataLoader
 
-from dataloader import SliceDataset, png_transform_nonorm, dummy_gt_transform, custom_collate
+from dataloader import SliceDataset, png_transform_nonorm,  tensor_transform, dummy_gt_transform, custom_collate
 from utils import save_images, map_, tqdm_, probs2class
 
 
@@ -23,11 +23,18 @@ def runInference(args: argparse.Namespace):
         num_classes: int = args.num_classes
 
         folders: list[Path] = [Path(args.data_folder)]
-        names: list[str] = map_(lambda p: str(p.name), folders[0].glob("*.png"))
+
+        imtype: str = "npy" if args.data_folder[-3:]=="npy" else "png"  #args.imgtype
+        if imtype=="png":
+                imtrans = png_transform_nonorm
+        else: #npy
+                imtrans =  tensor_transform
+        names: list[str] = map_(lambda p: str(p.name), folders[0].glob(f"*.{imtype}"))
+        #print(folders, len(names), names[:10])
         dt_set = SliceDataset(names,
                               folders * 2,  # Duplicate for compatibility reasons
                               are_hots=[False, False],
-                              transforms=[png_transform_nonorm, dummy_gt_transform],  # So it is happy about the target size
+                              transforms=[imtrans, dummy_gt_transform],  # So it is happy about the target size
                               debug=args.debug,
                               K=num_classes,
                               ignore_norm=True)
@@ -68,6 +75,8 @@ def get_args() -> argparse.Namespace:
         parser.add_argument('--model_weights', type=str, required=True)
 
         parser.add_argument("--debug", action="store_true")
+     #   parser.add_argument("--imgtype", type=str, default="png", choices=["png", "npy"],
+     #                           help="What type will the image input be (in case of POEM, 2 channel data, png is not suitable).")
 
         parser.add_argument('--num_classes', type=int, default=4)
         parser.add_argument('--batch_size', type=int, default=10)
@@ -76,7 +85,7 @@ def get_args() -> argparse.Namespace:
                 Useful to compute the 3d dice, but might destroy the memory for datasets with a lot of slices per patient.",
         )
         parser.add_argument("--grp_regex", type=str, default=None)
-        parser.add_argument("--csv", type=str, required=True)
+        #parser.add_argument("--csv", type=str, required=True)
 
         args = parser.parse_args()
 
