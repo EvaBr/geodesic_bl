@@ -1,4 +1,18 @@
-# Boundary loss
+# Boundary loss with point supervision
+This is a repository for the paper [Leveraging point annotations in segmentation learning with boundary loss](https://arxiv.org/abs/2311.03537). It builds on the [original repository] (https://github.com/LIVIAETS/boundary-loss) for the boundary loss [paper](http://proceedings.mlr.press/v102/kervadec19a.html).
+
+
+In principle, the code is run in the same way as in the original repo (see the instructions README as copied below), however, some additional capabilities are introduced. The training can now be done using either Euclidean, Geodesic, Intensity or Minimum Barrier distances (see the makefile for details) as well as with CRF-loss (using the rloss module linked within the repo). 
+
+
+The distancemaps are computed either using the [FastGeodis library](https://fastgeodis.readthedocs.io/en/latest/) or via own Python wrappers and underlying C++ code (main distance implementations by Filip Malmberg [here](https://github.com/FilipMalmberg/DistanceTransforms)) made available in folder "dists". 
+
+$~$
+
+$~$
+------------------------------------------------
+----------------------------------------------
+# Boundary loss (Copy)
 Official repository for [Boundary loss for highly unbalanced segmentation](http://proceedings.mlr.press/v102/kervadec19a.html), _runner-up for best paper award_ at [MIDL 2019](https://2019.midl.io). Recording of the talk is available [on the MIDL YouTube channel](https://www.youtube.com/watch?v=_z6gmFlD_qE).
 
 A journal extension has been published in [Medical Image Analysis (MedIA), volume 67](https://doi.org/10.1016/j.media.2020.101851).
