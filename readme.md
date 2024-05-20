@@ -1,5 +1,6 @@
 # Boundary loss with point supervision
-This is a repository for the paper [Leveraging point annotations in segmentation learning with boundary loss](https://arxiv.org/abs/2311.03537). It builds on the [original repository] (https://github.com/LIVIAETS/boundary-loss) for the boundary loss [paper](http://proceedings.mlr.press/v102/kervadec19a.html).
+This is a repository for the paper [Leveraging point annotations in segmentation learning with boundary loss](https://arxiv.org/abs/2311.03537), that harnesses the strength of the [Boundary loss](http://proceedings.mlr.press/v102/kervadec19a.html) coupled with intensity-aware distances to allow for weakly (point) supervised segmentation. 
+The repository builds on the [original boundary loss repository](https://github.com/LIVIAETS/boundary-loss).
 
 
 In principle, the code is run in the same way as in the original repo (see the instructions README as copied below), however, some additional capabilities are introduced. The training can now be done using either Euclidean, Geodesic, Intensity or Minimum Barrier distances (see the makefile for details) as well as with CRF-loss (using the rloss module linked within the repo). 
